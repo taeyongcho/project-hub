@@ -436,6 +436,28 @@ export default function ProjectDetail() {
                           {assignee && <span>{assignee.name}</span>}
                           {t.due_date && <span>{dayjs(t.due_date).format('MM/DD')}</span>}
                         </div>
+                        {/* 마일스톤 바로 배정 */}
+                        {project.milestones?.length > 0 && (
+                          <select
+                            onClick={e => e.stopPropagation()}
+                            defaultValue=""
+                            onChange={e => {
+                              e.stopPropagation()
+                              if (!e.target.value) return
+                              api.patch(`/tasks/${t.id}`, { milestone_id: parseInt(e.target.value) })
+                                .then(() => {
+                                  qc.invalidateQueries({ queryKey: ['tasks'] })
+                                  qc.invalidateQueries({ queryKey: ['project', id] })
+                                })
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                          >
+                            <option value="">마일스톤 배정...</option>
+                            {project.milestones.filter(m => !m.is_done).map(m => (
+                              <option key={m.id} value={m.id}>{m.title}</option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     )
                   })}
