@@ -6,8 +6,7 @@ import asyncio
 from datetime import date
 from app.core.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
-from app.models.project import Project
-from app.models.milestone import Milestone
+from app.models.project import Project, Milestone
 from app.models.task import Task
 from app.models.project_member import ProjectMember
 from app.core.security import hash_password
