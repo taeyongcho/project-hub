@@ -103,10 +103,20 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div className="p-3 border-t border-slate-800">
+      <div className="border-t border-slate-800">
+        <NavLink
+          to="/email-settings"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+              isActive ? 'bg-blue-600/20 text-blue-400' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`
+          }
+        >
+          <span>⚙️</span><span>이메일 계정 설정</span>
+        </NavLink>
         <button
           onClick={handleLogout}
-          className="w-full text-left text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded transition-colors"
+          className="w-full text-left text-xs text-slate-500 hover:text-slate-300 px-4 py-2.5 transition-colors"
         >
           로그아웃
         </button>

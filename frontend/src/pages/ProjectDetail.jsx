@@ -291,13 +291,24 @@ function TaskCard({ task: t, users, onMove, cols }) {
           </span>
         )}
       </div>
-      <div className="flex gap-1 mt-2 flex-wrap">
-        {cols.filter(c => c.key !== t.status).map(c => (
-          <button key={c.key} onClick={() => onMove(c.key)}
-            className="text-[10px] text-slate-600 hover:text-slate-300 border border-slate-700 hover:border-slate-500 px-1.5 py-0.5 rounded transition-colors">
-            → {c.label}
-          </button>
-        ))}
+      <div className="flex gap-1 mt-2">
+        {(() => {
+          const idx = cols.findIndex(c => c.key === t.status)
+          return [
+            idx > 0 && (
+              <button key="prev" onClick={() => onMove(cols[idx - 1].key)}
+                className="text-[10px] text-slate-600 hover:text-slate-300 border border-slate-700 hover:border-slate-500 px-1.5 py-0.5 rounded transition-colors">
+                ← {cols[idx - 1].label}
+              </button>
+            ),
+            idx < cols.length - 1 && (
+              <button key="next" onClick={() => onMove(cols[idx + 1].key)}
+                className="text-[10px] text-slate-600 hover:text-slate-300 border border-slate-700 hover:border-slate-500 px-1.5 py-0.5 rounded transition-colors">
+                → {cols[idx + 1].label}
+              </button>
+            ),
+          ]
+        })()}
       </div>
     </div>
   )

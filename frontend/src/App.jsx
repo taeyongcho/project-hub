@@ -10,6 +10,7 @@ import Tasks from './pages/Tasks'
 import WorkLog from './pages/WorkLog'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
+import EmailSettings from './pages/EmailSettings'
 
 function Guard({ children }) {
   const { token } = useAuth()
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="worklog" element={<WorkLog />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />
+          <Route path="email-settings" element={<EmailSettings />} />
         </Route>
       </Routes>
     </BrowserRouter>

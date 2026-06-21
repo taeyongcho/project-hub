@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.core.config import settings
-from app.api import auth, users, projects, tasks, emails, reports, work_logs
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(emails.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(work_logs.router, prefix="/api")
+app.include_router(email_accounts.router, prefix="/api")
 
 
 @app.get("/api/health")

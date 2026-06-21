@@ -6,3 +6,4 @@ from app.models.memo import Memo
 from app.models.work_log import WorkLog
 from app.models.report import Report
 from app.models.comment import Comment
+from app.models.email_account import EmailAccount
