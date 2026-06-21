@@ -3,6 +3,7 @@ import { useParams, useOutletContext } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 import dayjs from 'dayjs'
+import WBSView from '../components/WBSView'
 
 const KANBAN_COLS = [
   { key: 'todo',        label: '할 일',  color: 'text-slate-500',   bg: 'bg-slate-100' },
@@ -203,7 +204,7 @@ export default function ProjectDetail() {
 
       {/* 탭 */}
       <div className="flex gap-1 mb-4 border-b border-slate-200 pb-0">
-        {[['kanban','칸반 보드'],['milestones','마일스톤'],['list','목록'],['members',`멤버 ${members.length}`]].map(([v, l]) => (
+        {[['kanban','칸반 보드'],['wbs','WBS'],['milestones','마일스톤'],['list','목록'],['members',`멤버 ${members.length}`]].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               tab === v
@@ -260,6 +261,18 @@ export default function ProjectDetail() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* WBS */}
+      {tab === 'wbs' && (
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <WBSView
+            tasks={tasks}
+            projectId={parseInt(id)}
+            users={users}
+            onSelectTask={onSelectTask}
+          />
         </div>
       )}
 

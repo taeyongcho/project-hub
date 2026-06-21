@@ -13,7 +13,7 @@ async def get_tasks(db: AsyncSession, project_id=None, assigned_to_id=None, stat
         q = q.where(Task.assigned_to_id == assigned_to_id)
     if status:
         q = q.where(Task.status == status)
-    q = q.order_by(Task.due_date.asc().nullslast(), Task.created_at.desc())
+    q = q.order_by(Task.wbs_order.asc(), Task.due_date.asc().nullslast(), Task.created_at.asc())
     result = await db.execute(q)
     return [_t(t) for t in result.scalars().all()]
 
@@ -70,8 +70,10 @@ def _t(t: Task) -> dict:
         return None
     return {"id": t.id, "title": t.title, "description": t.description,
             "status": t.status, "priority": t.priority,
+            "start_date": str(t.start_date) if t.start_date else None,
             "due_date": str(t.due_date) if t.due_date else None,
             "done_at": str(t.done_at) if t.done_at else None,
             "project_id": t.project_id, "milestone_id": t.milestone_id,
             "assigned_to_id": t.assigned_to_id, "email_id": t.email_id,
+            "parent_id": t.parent_id, "wbs_order": t.wbs_order or 0,
             "created_by_id": t.created_by_id, "created_at": str(t.created_at)}

@@ -18,6 +18,9 @@ class Task(Base):
     assigned_to_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     email_id: Mapped[int] = mapped_column(Integer, ForeignKey("emails.id"), nullable=True)
+    parent_id: Mapped[int] = mapped_column(Integer, ForeignKey("tasks.id"), nullable=True)
+    wbs_order: Mapped[int] = mapped_column(Integer, default=0)
+    start_date: Mapped[Date] = mapped_column(Date, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     project = relationship("Project", back_populates="tasks")

@@ -187,6 +187,17 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                   </select>
                 </div>
 
+                {/* 시작일 */}
+                <div>
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">시작일</label>
+                  <input
+                    type="date"
+                    value={task?.start_date || ''}
+                    onChange={e => update({ start_date: e.target.value || null })}
+                    className={inputCls}
+                  />
+                </div>
+
                 {/* 마감일 */}
                 <div>
                   <label className="text-xs font-medium text-slate-400 mb-1 block">마감일</label>

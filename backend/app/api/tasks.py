@@ -14,11 +14,14 @@ class TaskCreate(BaseModel):
     title: str
     description: str = ""
     priority: str = "normal"
+    start_date: date | None = None
     due_date: date | None = None
     project_id: int | None = None
     milestone_id: int | None = None
     assigned_to_id: int | None = None
     email_id: int | None = None
+    parent_id: int | None = None
+    wbs_order: int = 0
 
 
 class TaskUpdate(BaseModel):
@@ -26,9 +29,12 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     status: str | None = None
     priority: str | None = None
+    start_date: date | None = None
     due_date: date | None = None
     milestone_id: int | None = None
     assigned_to_id: int | None = None
+    parent_id: int | None = None
+    wbs_order: int | None = None
 
 
 class CommentCreate(BaseModel):
