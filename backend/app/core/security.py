@@ -30,13 +30,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
                                           detail="인증 정보가 유효하지 않습니다.")
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        user_id: int = payload.get("sub")
-        print(f"[DEBUG] token ok, user_id={user_id!r}", flush=True)
-        if user_id is None:
-            print("[DEBUG] 401: sub is None", flush=True)
+        sub = payload.get("sub")
+        if sub is None:
             raise credentials_exception
-    except JWTError as e:
-        print(f"[DEBUG] 401: JWTError {e!r}", flush=True)
+        user_id = int(sub)
+    except (JWTError, ValueError):
         raise credentials_exception
     user = await get_user_by_id(db, user_id)
     if not user:
