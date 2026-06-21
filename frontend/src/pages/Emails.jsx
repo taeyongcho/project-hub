@@ -15,7 +15,9 @@ export default function Emails() {
   const qc = useQueryClient()
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState(null)   // 상세 보기 대상
+  const [checkedIds, setCheckedIds] = useState(new Set())  // 체크된 항목들
+  const [lastCheckedIdx, setLastCheckedIdx] = useState(null)
   const [memo, setMemo] = useState('')
   const [importAccountId, setImportAccountId] = useState('')
   const [showHtml, setShowHtml] = useState(false)
@@ -67,14 +69,13 @@ export default function Emails() {
     }
   })
 
-  const importMut = useMutation({
-    mutationFn: ({ file, accountId }) => {
-      const fd = new FormData()
-      fd.append('file', file)
-      const params = accountId ? `?account_id=${accountId}` : ''
-      return api.post(`/emails/import${params}`, fd)
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['emails'] })
+  const bulkDeleteMut = useMutation({
+    mutationFn: ids => Promise.all(ids.map(id => api.delete(`/emails/${id}`))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['emails'] })
+      setCheckedIds(new Set())
+      if (selected && checkedIds.has(selected.id)) setSelected(null)
+    }
   })
 
   const syncMut = useMutation({
@@ -90,6 +91,16 @@ export default function Emails() {
     onError: (e) => alert('동기화 실패: ' + (e.response?.data?.detail || e.message))
   })
 
+  const importMut = useMutation({
+    mutationFn: ({ file, accountId }) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const params = accountId ? `?account_id=${accountId}` : ''
+      return api.post(`/emails/import${params}`, fd)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['emails'] })
+  })
+
   const taskMut = useMutation({
     mutationFn: ({ title, email_id }) => api.post('/tasks', { title, email_id, priority: 'normal' }),
     onSuccess: () => alert('할일이 생성되었습니다.')
@@ -101,7 +112,41 @@ export default function Emails() {
     e.target.value = ''
   }
 
-  // 본문: HTML 우선, 없으면 텍스트
+  // 체크박스 토글 (Shift+클릭 범위 선택 지원)
+  const handleCheck = (e, emailId, idx) => {
+    e.stopPropagation()
+    const next = new Set(checkedIds)
+
+    if (e.shiftKey && lastCheckedIdx !== null) {
+      const from = Math.min(lastCheckedIdx, idx)
+      const to = Math.max(lastCheckedIdx, idx)
+      const wasChecked = checkedIds.has(emailId)
+      for (let i = from; i <= to; i++) {
+        if (wasChecked) next.delete(emails[i].id)
+        else next.add(emails[i].id)
+      }
+    } else {
+      if (next.has(emailId)) next.delete(emailId)
+      else next.add(emailId)
+    }
+
+    setCheckedIds(next)
+    setLastCheckedIdx(idx)
+  }
+
+  const allChecked = emails.length > 0 && emails.every(e => checkedIds.has(e.id))
+  const someChecked = checkedIds.size > 0
+
+  const toggleAll = () => {
+    if (allChecked) setCheckedIds(new Set())
+    else setCheckedIds(new Set(emails.map(e => e.id)))
+  }
+
+  const handleBulkDelete = () => {
+    if (!confirm(`선택한 ${checkedIds.size}개 메일을 삭제할까요?`)) return
+    bulkDeleteMut.mutate([...checkedIds])
+  }
+
   const bodyHtml = detail?.body_html
   const bodyText = detail?.body_text
 
@@ -124,7 +169,7 @@ export default function Emails() {
               title={myAccounts.length === 0 ? '이메일 계정을 먼저 등록하세요' : '등록된 계정에서 새 메일 가져오기'}
             >
               {syncMut.isPending
-                ? <><span className="animate-spin">↻</span> 동기화 중...</>
+                ? <><span className="animate-spin inline-block">↻</span> 동기화 중...</>
                 : <>↻ 메일 동기화</>
               }
             </button>
@@ -156,41 +201,90 @@ export default function Emails() {
           </div>
         </div>
 
+        {/* 전체선택 / 선택 삭제 툴바 */}
+        <div className={`flex items-center gap-2 px-3 py-2 border-b border-slate-100 transition-colors ${someChecked ? 'bg-red-50' : 'bg-slate-50'}`}>
+          <input type="checkbox"
+            checked={allChecked}
+            ref={el => { if (el) el.indeterminate = someChecked && !allChecked }}
+            onChange={toggleAll}
+            className="w-4 h-4 rounded accent-slate-700 cursor-pointer"
+          />
+          <span className="text-xs text-slate-500 flex-1">
+            {someChecked ? `${checkedIds.size}개 선택됨` : `전체 ${emails.length}개`}
+          </span>
+          {someChecked && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMut.isPending}
+              className="text-xs text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded-lg font-medium transition-colors"
+            >
+              {bulkDeleteMut.isPending ? '삭제 중...' : `${checkedIds.size}개 삭제`}
+            </button>
+          )}
+          {someChecked && (
+            <button onClick={() => setCheckedIds(new Set())}
+              className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded-lg transition-colors">
+              취소
+            </button>
+          )}
+        </div>
+
         <div className="flex-1 overflow-y-auto">
           {emails.length === 0
             ? <div className="p-6 text-center text-slate-400 text-sm">메일이 없습니다</div>
-            : emails.map(e => (
-              <div key={e.id} onClick={() => { setSelected(e); setShowHtml(false) }}
-                className={`p-3 border-b border-slate-100 cursor-pointer transition-colors ${
-                  selected?.id === e.id
-                    ? 'bg-blue-50 border-l-2 border-l-blue-500'
-                    : 'hover:bg-slate-50'
-                }`}>
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-600 truncate flex-1 font-medium">{e.from_ || '(발신자 없음)'}</span>
-                  <span className="text-xs text-slate-400 flex-shrink-0">
-                    {e.date_ts ? dayjs(e.date_ts * 1000).format('MM/DD') : ''}
-                  </span>
+            : emails.map((e, idx) => {
+              const isChecked = checkedIds.has(e.id)
+              return (
+                <div key={e.id}
+                  onClick={() => { setSelected(e); setShowHtml(false) }}
+                  className={`flex items-start gap-2 p-3 border-b border-slate-100 cursor-pointer transition-colors ${
+                    isChecked
+                      ? 'bg-red-50'
+                      : selected?.id === e.id
+                        ? 'bg-blue-50 border-l-2 border-l-blue-500'
+                        : 'hover:bg-slate-50'
+                  }`}>
+                  {/* 체크박스 */}
+                  <div className="pt-0.5 flex-shrink-0" onClick={ev => handleCheck(ev, e.id, idx)}>
+                    <input type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="w-4 h-4 rounded accent-slate-700 cursor-pointer"
+                    />
+                  </div>
+                  {/* 내용 */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="text-xs text-slate-600 truncate flex-1 font-medium">{e.from_ || '(발신자 없음)'}</span>
+                      <span className="text-xs text-slate-400 flex-shrink-0">
+                        {e.date_ts ? dayjs(e.date_ts * 1000).format('MM/DD') : ''}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-800 truncate mb-1.5 font-medium">{e.subject}</div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <StatusBadge status={e.status} />
+                      {e.account_name && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">
+                          {e.account_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm text-slate-800 truncate mb-1.5 font-medium">{e.subject}</div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <StatusBadge status={e.status} />
-                  {e.account_name && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">
-                      {e.account_name}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))
+              )
+            })
           }
+          {someChecked && (
+            <div className="p-3 text-center text-xs text-slate-400">
+              Shift+클릭으로 범위 선택
+            </div>
+          )}
         </div>
       </div>
 
       {/* 상세 패널 */}
       {selected ? (
         <div className="flex-1 overflow-y-auto p-6">
-          {/* 제목 + 삭제 */}
           <div className="flex items-start justify-between gap-4 mb-3">
             <h2 className="text-lg font-bold text-slate-900 leading-tight flex-1">
               {detail?.subject || selected.subject}
@@ -203,7 +297,6 @@ export default function Emails() {
             </button>
           </div>
 
-          {/* 메타 */}
           <div className="text-sm text-slate-500 space-y-1 mb-4 pb-4 border-b border-slate-100">
             <div className="flex gap-2">
               <span className="text-slate-400 w-14 flex-shrink-0">보낸이</span>
@@ -217,7 +310,6 @@ export default function Emails() {
               <span className="text-slate-400 w-14 flex-shrink-0">날짜</span>
               <span>{selected.date_ts ? dayjs(selected.date_ts * 1000).format('YYYY-MM-DD HH:mm') : '-'}</span>
             </div>
-            {/* 출처 계정 */}
             {(detail?.account_name || selected.account_name) && (
               <div className="flex gap-2 items-center">
                 <span className="text-slate-400 w-14 flex-shrink-0">계정</span>
@@ -232,7 +324,6 @@ export default function Emails() {
             )}
           </div>
 
-          {/* 상태 버튼 */}
           <div className="flex gap-2 mb-5 flex-wrap">
             {Object.entries(STATUS_LABELS).map(([s, { label }]) => (
               <button key={s} onClick={() => statusMut.mutate({ id: selected.id, status: s })}
@@ -255,7 +346,6 @@ export default function Emails() {
             </button>
           </div>
 
-          {/* 본문 */}
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">본문</h3>
@@ -288,7 +378,6 @@ export default function Emails() {
             )}
           </div>
 
-          {/* 메모 */}
           <div>
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">메모</h3>
             <div className="space-y-2 mb-3">
