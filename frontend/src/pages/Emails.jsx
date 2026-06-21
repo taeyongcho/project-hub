@@ -65,7 +65,7 @@ export default function Emails() {
   return (
     <div className="flex h-full">
       {/* 목록 패널 */}
-      <div className="w-80 flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
+      <div className="w-[400px] flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
         <div className="p-3 border-b border-slate-100 space-y-2">
           <div className="flex items-center gap-2">
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
