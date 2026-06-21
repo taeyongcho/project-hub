@@ -214,12 +214,14 @@ export default function ProjectDetail() {
             {l}
           </button>
         ))}
-        <div className="ml-auto pb-1">
-          <button onClick={() => setShowTask(true)}
-            className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl font-medium transition-colors">
-            + 태스크 추가
-          </button>
-        </div>
+        {!['members', 'wbs'].includes(tab) && (
+          <div className="ml-auto pb-1">
+            <button onClick={() => setShowTask(true)}
+              className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl font-medium transition-colors">
+              + 태스크 추가
+            </button>
+          </div>
+        )}
       </div>
 
       {showTask && (
