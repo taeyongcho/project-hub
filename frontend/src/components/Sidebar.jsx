@@ -6,13 +6,16 @@ import api from '../api/client'
 import SearchModal from './SearchModal'
 import NotificationPanel from './NotificationPanel'
 
-const nav = [
+const TEAM_NAV = [
   { to: '/dashboard', icon: '▦', label: '대시보드' },
-  { to: '/emails', icon: '✉', label: '이메일' },
-  { to: '/projects', icon: '◈', label: '프로젝트' },
-  { to: '/tasks', icon: '✓', label: '할 일' },
-  { to: '/worklog', icon: '◷', label: '업무일지' },
-  { to: '/reports', icon: '▤', label: '보고서' },
+  { to: '/projects',  icon: '◈', label: '프로젝트' },
+  { to: '/tasks',     icon: '✓', label: '할 일'   },
+  { to: '/reports',   icon: '▤', label: '보고서'  },
+]
+
+const MY_NAV = [
+  { to: '/emails',  icon: '✉', label: '내 이메일' },
+  { to: '/worklog', icon: '◷', label: '업무일지'  },
 ]
 
 export default function Sidebar({ onSelectTask }) {
@@ -38,7 +41,6 @@ export default function Sidebar({ onSelectTask }) {
     queryFn: () => api.get('/projects').then(r => r.data),
   })
 
-  // Ctrl+K / Cmd+K 전역 단축키
   useEffect(() => {
     const h = e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -52,6 +54,13 @@ export default function Sidebar({ onSelectTask }) {
 
   const notifCount = notifData?.count || 0
 
+  const navLinkCls = ({ isActive }) =>
+    `flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+      isActive
+        ? 'bg-blue-50 text-blue-700'
+        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+    }`
+
   return (
     <>
       <aside className="w-56 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 relative">
@@ -61,7 +70,7 @@ export default function Sidebar({ onSelectTask }) {
           <div className="text-xs text-slate-400 mt-0.5 font-medium">{user?.name}</div>
         </div>
 
-        {/* 검색 버튼 */}
+        {/* 검색 */}
         <div className="px-3 pt-3 pb-1">
           <button
             onClick={() => setShowSearch(true)}
@@ -76,34 +85,24 @@ export default function Sidebar({ onSelectTask }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-1.5">
-          {nav.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`
-              }
-            >
+          {/* 팀 영역 */}
+          <div className="px-5 pt-3 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
+            팀 공유
+          </div>
+          {TEAM_NAV.map(item => (
+            <NavLink key={item.to} to={item.to} className={navLinkCls}>
               <span className="text-base leading-none">{item.icon}</span>
               <span>{item.label}</span>
-              {item.to === '/emails' && overdue?.length > 0 && (
-                <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
-                  {overdue.length}
-                </span>
-              )}
             </NavLink>
           ))}
 
+          {/* 프로젝트 목록 */}
           {projects?.length > 0 && (
             <>
-              <div className="px-5 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
+              <div className="px-5 pt-3 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
                 프로젝트
               </div>
-              {projects.slice(0, 8).map(p => (
+              {projects.filter(p => p.status === 'active').slice(0, 8).map(p => (
                 <NavLink
                   key={p.id}
                   to={`/projects/${p.id}`}
@@ -120,6 +119,23 @@ export default function Sidebar({ onSelectTask }) {
             </>
           )}
 
+          {/* 개인 영역 */}
+          <div className="px-5 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
+            개인
+          </div>
+          {MY_NAV.map(item => (
+            <NavLink key={item.to} to={item.to} className={navLinkCls}>
+              <span className="text-base leading-none">{item.icon}</span>
+              <span>{item.label}</span>
+              {item.to === '/emails' && overdue?.length > 0 && (
+                <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                  {overdue.length}
+                </span>
+              )}
+            </NavLink>
+          ))}
+
+          {/* 관리자 */}
           {user?.role === 'admin' && (
             <>
               <div className="px-5 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
@@ -127,11 +143,7 @@ export default function Sidebar({ onSelectTask }) {
               </div>
               <NavLink
                 to="/users"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`
-                }
+                className={navLinkCls}
               >
                 <span>◎</span><span>사용자 관리</span>
               </NavLink>
@@ -141,7 +153,6 @@ export default function Sidebar({ onSelectTask }) {
 
         {/* 하단 */}
         <div className="border-t border-slate-100">
-          {/* 알림 버튼 */}
           <div className="relative mx-2 my-1">
             <button
               onClick={() => setShowNotif(s => !s)}
@@ -184,7 +195,6 @@ export default function Sidebar({ onSelectTask }) {
         </div>
       </aside>
 
-      {/* 전역 검색 모달 */}
       {showSearch && (
         <SearchModal
           onClose={() => setShowSearch(false)}

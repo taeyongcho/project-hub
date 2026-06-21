@@ -18,6 +18,9 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_emails_owner_id ON emails(owner_id)"
         ))
+        await conn.execute(text(
+            "ALTER TABLE emails ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES email_accounts(id)"
+        ))
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
     yield

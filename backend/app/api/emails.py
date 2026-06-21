@@ -1,16 +1,17 @@
-from fastapi import APIRouter, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.services.email import (get_emails, get_email, update_email_status,
-                                 import_eml_file, get_overdue_reply, add_memo, get_memos)
+                                 import_eml_file, get_overdue_reply, add_memo, get_memos,
+                                 delete_email)
 
 router = APIRouter(prefix="/emails", tags=["이메일"])
 
 
 class StatusUpdate(BaseModel):
-    status: str  # unread / pending / replied / done / waiting
+    status: str
     project_id: int | None = None
     assigned_to_id: int | None = None
 
@@ -51,11 +52,25 @@ async def set_status(email_id: int, body: StatusUpdate, db: AsyncSession = Depen
     return await update_email_status(db, email_id, body.model_dump(exclude_none=True))
 
 
+@router.delete("/{email_id}")
+async def remove_email(email_id: int, db: AsyncSession = Depends(get_db),
+                       current_user=Depends(get_current_user)):
+    ok = await delete_email(db, email_id, owner_id=current_user.id)
+    if not ok:
+        raise HTTPException(404, "이메일을 찾을 수 없습니다.")
+    return {"ok": True}
+
+
 @router.post("/import")
-async def import_eml(file: UploadFile = File(...), db: AsyncSession = Depends(get_db),
-                     current_user=Depends(get_current_user)):
+async def import_eml(
+    file: UploadFile = File(...),
+    account_id: int | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
     content = await file.read()
-    return await import_eml_file(db, content, file.filename, owner_id=current_user.id)
+    return await import_eml_file(db, content, file.filename,
+                                  owner_id=current_user.id, account_id=account_id)
 
 
 @router.get("/{email_id}/memos")

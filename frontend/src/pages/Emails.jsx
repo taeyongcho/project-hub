@@ -17,6 +17,8 @@ export default function Emails() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
   const [memo, setMemo] = useState('')
+  const [importAccountId, setImportAccountId] = useState('')
+  const [showHtml, setShowHtml] = useState(false)
   const fileRef = useRef()
 
   const { data: emails = [] } = useQuery({
@@ -24,6 +26,11 @@ export default function Emails() {
     queryFn: () => api.get('/emails', {
       params: { status: filter === 'all' ? undefined : filter, q: search || undefined, limit: 200 }
     }).then(r => r.data)
+  })
+
+  const { data: myAccounts = [] } = useQuery({
+    queryKey: ['email-accounts'],
+    queryFn: () => api.get('/email-accounts').then(r => r.data)
   })
 
   const { data: detail } = useQuery({
@@ -52,8 +59,21 @@ export default function Emails() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['email-memos', selected?.id] }); setMemo('') }
   })
 
+  const deleteMut = useMutation({
+    mutationFn: id => api.delete(`/emails/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['emails'] })
+      setSelected(null)
+    }
+  })
+
   const importMut = useMutation({
-    mutationFn: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/emails/import', fd) },
+    mutationFn: ({ file, accountId }) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const params = accountId ? `?account_id=${accountId}` : ''
+      return api.post(`/emails/import${params}`, fd)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['emails'] })
   })
 
@@ -61,6 +81,16 @@ export default function Emails() {
     mutationFn: ({ title, email_id }) => api.post('/tasks', { title, email_id, priority: 'normal' }),
     onSuccess: () => alert('할일이 생성되었습니다.')
   })
+
+  const handleFileChange = e => {
+    const file = e.target.files[0]
+    if (file) importMut.mutate({ file, accountId: importAccountId || null })
+    e.target.value = ''
+  }
+
+  // 본문: HTML 우선, 없으면 텍스트
+  const bodyHtml = detail?.body_html
+  const bodyText = detail?.body_text
 
   return (
     <div className="flex h-full">
@@ -70,13 +100,24 @@ export default function Emails() {
           <div className="flex items-center gap-2">
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
               className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+
+          {/* 가져오기: 계정 선택 + 버튼 */}
+          <div className="flex items-center gap-2">
+            <select value={importAccountId} onChange={e => setImportAccountId(e.target.value)}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">계정 선택 (선택)</option>
+              {myAccounts.map(a => (
+                <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
+              ))}
+            </select>
             <button onClick={() => fileRef.current.click()}
               className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
               EML 가져오기
             </button>
-            <input ref={fileRef} type="file" accept=".eml" className="hidden"
-              onChange={e => e.target.files[0] && importMut.mutate(e.target.files[0])} />
+            <input ref={fileRef} type="file" accept=".eml" className="hidden" onChange={handleFileChange} />
           </div>
+
           <div className="flex gap-1 flex-wrap">
             {[['all','전체'],['pending','답장필요'],['unread','미확인'],['done','완료'],['waiting','대기']].map(([v, l]) => (
               <button key={v} onClick={() => setFilter(v)}
@@ -93,7 +134,7 @@ export default function Emails() {
           {emails.length === 0
             ? <div className="p-6 text-center text-slate-400 text-sm">메일이 없습니다</div>
             : emails.map(e => (
-              <div key={e.id} onClick={() => setSelected(e)}
+              <div key={e.id} onClick={() => { setSelected(e); setShowHtml(false) }}
                 className={`p-3 border-b border-slate-100 cursor-pointer transition-colors ${
                   selected?.id === e.id
                     ? 'bg-blue-50 border-l-2 border-l-blue-500'
@@ -106,7 +147,14 @@ export default function Emails() {
                   </span>
                 </div>
                 <div className="text-sm text-slate-800 truncate mb-1.5 font-medium">{e.subject}</div>
-                <StatusBadge status={e.status} />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <StatusBadge status={e.status} />
+                  {e.account_name && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">
+                      {e.account_name}
+                    </span>
+                  )}
+                </div>
               </div>
             ))
           }
@@ -116,19 +164,49 @@ export default function Emails() {
       {/* 상세 패널 */}
       {selected ? (
         <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
-          <h2 className="text-lg font-bold text-slate-900 mb-3">{detail?.subject || selected.subject}</h2>
-          <div className="text-sm text-slate-500 space-y-1 mb-5 pb-5 border-b border-slate-100">
-            <div><span className="text-slate-400 w-16 inline-block">보낸 이</span>{detail?.from_ || selected.from_}</div>
-            <div>
-              <span className="text-slate-400 w-16 inline-block">날짜</span>
-              {selected.date_ts ? dayjs(selected.date_ts * 1000).format('YYYY-MM-DD HH:mm') : '-'}
+          {/* 제목 + 삭제 */}
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <h2 className="text-lg font-bold text-slate-900 leading-tight flex-1">
+              {detail?.subject || selected.subject}
+            </h2>
+            <button
+              onClick={() => confirm('이 이메일을 삭제할까요? 파일도 함께 삭제됩니다.') && deleteMut.mutate(selected.id)}
+              className="text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium flex-shrink-0"
+            >
+              삭제
+            </button>
+          </div>
+
+          {/* 메타 */}
+          <div className="text-sm text-slate-500 space-y-1 mb-4 pb-4 border-b border-slate-100">
+            <div className="flex gap-2">
+              <span className="text-slate-400 w-14 flex-shrink-0">보낸이</span>
+              <span>{detail?.from_ || selected.from_}</span>
             </div>
+            <div className="flex gap-2">
+              <span className="text-slate-400 w-14 flex-shrink-0">받는이</span>
+              <span className="text-slate-600">{detail?.to_ || selected.to_ || '-'}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-slate-400 w-14 flex-shrink-0">날짜</span>
+              <span>{selected.date_ts ? dayjs(selected.date_ts * 1000).format('YYYY-MM-DD HH:mm') : '-'}</span>
+            </div>
+            {/* 출처 계정 */}
+            {(detail?.account_name || selected.account_name) && (
+              <div className="flex gap-2 items-center">
+                <span className="text-slate-400 w-14 flex-shrink-0">계정</span>
+                <span className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">
+                  ✉ {detail?.account_name || selected.account_name}
+                  {detail?.account_email && <span className="text-violet-500">({detail.account_email})</span>}
+                </span>
+              </div>
+            )}
             {selected.status === 'pending' && (
               <div className="text-red-500 font-semibold mt-1">⚠ 답장 대기 중</div>
             )}
           </div>
 
-          {/* 상태 변경 버튼 */}
+          {/* 상태 버튼 */}
           <div className="flex gap-2 mb-5 flex-wrap">
             {Object.entries(STATUS_LABELS).map(([s, { label }]) => (
               <button key={s} onClick={() => statusMut.mutate({ id: selected.id, status: s })}
@@ -151,14 +229,42 @@ export default function Emails() {
             </button>
           </div>
 
-          {/* 본문 placeholder */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 text-sm text-slate-500 min-h-32">
-            <p className="text-slate-400 text-xs">(이메일 본문은 EML 파일에서 직접 읽습니다)</p>
+          {/* 본문 */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">본문</h3>
+              {bodyHtml && bodyText && (
+                <button onClick={() => setShowHtml(h => !h)}
+                  className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100 transition-colors">
+                  {showHtml ? '텍스트 보기' : 'HTML 보기'}
+                </button>
+              )}
+            </div>
+            {bodyHtml || bodyText ? (
+              showHtml && bodyHtml ? (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <iframe
+                    srcDoc={bodyHtml}
+                    title="email-body"
+                    className="w-full min-h-[400px] bg-white"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto font-mono">
+                  {bodyText || '(텍스트 본문 없음 — HTML 보기로 전환하세요)'}
+                </div>
+              )
+            ) : (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-400 min-h-24 flex items-center justify-center">
+                {detail ? '본문이 없습니다.' : '불러오는 중...'}
+              </div>
+            )}
           </div>
 
           {/* 메모 */}
           <div>
-            <h3 className="text-sm font-semibold text-slate-800 mb-3">메모</h3>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">메모</h3>
             <div className="space-y-2 mb-3">
               {memos.map(m => (
                 <div key={m.id} className="bg-amber-50 border border-amber-100 rounded-xl p-3">

@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from app.models.email import Email
+from app.models.email_account import EmailAccount
 from app.models.memo import Memo
 
 
@@ -27,7 +28,56 @@ def _decode_hdr(val):
     return "".join(out).strip()
 
 
-async def import_eml_file(db: AsyncSession, content: bytes, filename: str, owner_id: int = None):
+def _extract_body(msg) -> tuple[str, str]:
+    """본문 텍스트와 HTML 추출, (text, html) 반환"""
+    text_body = ""
+    html_body = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            ct = part.get_content_type()
+            cd = str(part.get("Content-Disposition", ""))
+            if "attachment" in cd:
+                continue
+            charset = part.get_content_charset() or "utf-8"
+            try:
+                payload = part.get_payload(decode=True)
+                if payload is None:
+                    continue
+                decoded = payload.decode(charset, errors="replace")
+                if ct == "text/plain" and not text_body:
+                    text_body = decoded
+                elif ct == "text/html" and not html_body:
+                    html_body = decoded
+            except Exception:
+                pass
+    else:
+        ct = msg.get_content_type()
+        charset = msg.get_content_charset() or "utf-8"
+        try:
+            payload = msg.get_payload(decode=True)
+            if payload:
+                decoded = payload.decode(charset, errors="replace")
+                if ct == "text/html":
+                    html_body = decoded
+                else:
+                    text_body = decoded
+        except Exception:
+            pass
+    return text_body, html_body
+
+
+def _read_body_from_file(path: str) -> tuple[str, str]:
+    try:
+        with open(path, "rb") as f:
+            content = f.read()
+        msg = email_lib.message_from_bytes(content, policy=email_lib.policy.compat32)
+        return _extract_body(msg)
+    except Exception:
+        return "", ""
+
+
+async def import_eml_file(db: AsyncSession, content: bytes, filename: str,
+                           owner_id: int = None, account_id: int = None):
     msg = email_lib.message_from_bytes(content, policy=email_lib.policy.compat32)
     subject = _decode_hdr(msg.get("Subject", "")) or filename
     from_ = _decode_hdr(msg.get("From", ""))
@@ -53,7 +103,7 @@ async def import_eml_file(db: AsyncSession, content: bytes, filename: str, owner
         return {"status": "skipped", "path": path}
 
     em = Email(path=path, subject=subject, from_=from_, to_=to_, cc_=cc_,
-               date_str=date_str, date_ts=date_ts, owner_id=owner_id)
+               date_str=date_str, date_ts=date_ts, owner_id=owner_id, account_id=account_id)
     db.add(em)
     await db.commit()
     await db.refresh(em)
@@ -73,13 +123,46 @@ async def get_emails(db: AsyncSession, owner_id: int, status=None, project_id=No
         query = query.where(or_(Email.subject.ilike(f"%{q}%"), Email.from_.ilike(f"%{q}%")))
     query = query.order_by(Email.date_ts.desc().nullslast()).offset(skip).limit(limit)
     result = await db.execute(query)
-    return [_e(e) for e in result.scalars().all()]
+    emails = result.scalars().all()
+
+    # 계정 정보 일괄 조회
+    account_ids = {e.account_id for e in emails if e.account_id}
+    accounts = {}
+    if account_ids:
+        acc_result = await db.execute(select(EmailAccount).where(EmailAccount.id.in_(account_ids)))
+        for acc in acc_result.scalars().all():
+            accounts[acc.id] = acc
+
+    return [_e(e, accounts.get(e.account_id)) for e in emails]
 
 
 async def get_email(db: AsyncSession, email_id: int):
     result = await db.execute(select(Email).where(Email.id == email_id))
     e = result.scalar_one_or_none()
-    return _e(e) if e else None
+    if not e:
+        return None
+    account = None
+    if e.account_id:
+        acc_result = await db.execute(select(EmailAccount).where(EmailAccount.id == e.account_id))
+        account = acc_result.scalar_one_or_none()
+    text_body, html_body = _read_body_from_file(e.path)
+    return _e(e, account, text_body=text_body, html_body=html_body)
+
+
+async def delete_email(db: AsyncSession, email_id: int, owner_id: int) -> bool:
+    result = await db.execute(select(Email).where(Email.id == email_id, Email.owner_id == owner_id))
+    e = result.scalar_one_or_none()
+    if not e:
+        return False
+    # 파일도 삭제
+    try:
+        if e.path and os.path.exists(e.path):
+            os.remove(e.path)
+    except Exception:
+        pass
+    await db.delete(e)
+    await db.commit()
+    return True
 
 
 async def update_email_status(db: AsyncSession, email_id: int, data: dict):
@@ -121,10 +204,27 @@ async def add_memo(db: AsyncSession, email_id: int, author_id: int, content: str
     return {"id": m.id, "content": m.content, "author_id": m.author_id, "created_at": str(m.created_at)}
 
 
-def _e(e: Email) -> dict:
+def _e(e: Email, account: EmailAccount = None, text_body: str = None, html_body: str = None) -> dict:
     if not e:
         return None
-    return {"id": e.id, "subject": e.subject, "from_": e.from_, "to_": e.to_,
-            "date_str": e.date_str, "date_ts": e.date_ts, "status": e.status,
-            "project_id": e.project_id, "assigned_to_id": e.assigned_to_id,
-            "replied_at": str(e.replied_at) if e.replied_at else None}
+    result = {
+        "id": e.id,
+        "subject": e.subject,
+        "from_": e.from_,
+        "to_": e.to_,
+        "cc_": e.cc_,
+        "date_str": e.date_str,
+        "date_ts": e.date_ts,
+        "status": e.status,
+        "project_id": e.project_id,
+        "assigned_to_id": e.assigned_to_id,
+        "replied_at": str(e.replied_at) if e.replied_at else None,
+        "account_id": e.account_id,
+        "account_name": account.name if account else None,
+        "account_email": account.email if account else None,
+    }
+    if text_body is not None:
+        result["body_text"] = text_body
+    if html_body is not None:
+        result["body_html"] = html_body
+    return result
