@@ -77,42 +77,48 @@ async def delete_account(db: AsyncSession, account_id: int):
 
 
 async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
+    import hashlib, os
     account = await get_account(db, account_id)
     if not account:
         return {"error": "계정을 찾을 수 없습니다."}
 
     password = _dec(account.password_enc)
     imported = 0
+    skipped = 0
     errors = []
+
+    save_dir = "/app/emails"
+    os.makedirs(save_dir, exist_ok=True)
 
     try:
         if account.pop3_ssl:
-            conn = poplib.POP3_SSL(account.pop3_host, account.pop3_port)
+            conn = poplib.POP3_SSL(account.pop3_host, account.pop3_port, timeout=20)
         else:
-            conn = poplib.POP3(account.pop3_host, account.pop3_port)
+            conn = poplib.POP3(account.pop3_host, account.pop3_port, timeout=20)
 
         conn.user(account.username)
         conn.pass_(password)
 
         num_messages = len(conn.list()[1])
-
-        # 마지막 50개만
         start = max(1, num_messages - 49)
 
         for i in range(start, num_messages + 1):
             try:
-                raw = b"\n".join(conn.retr(i)[1])
+                raw_lines = conn.retr(i)[1]
+                raw = b"\r\n".join(raw_lines)
                 msg = email_lib.message_from_bytes(raw)
 
                 msg_id = msg.get("Message-ID", "").strip()
-                path = f"pop3:{account_id}:{msg_id or i}"
+                uid = hashlib.md5((msg_id or f"{account_id}_{i}").encode()).hexdigest()
+                filename = f"pop3_{account_id}_{uid}.eml"
+                path = os.path.join(save_dir, filename)
 
-                # 중복 확인
                 existing = await db.execute(select(Email).where(Email.path == path))
                 if existing.scalar_one_or_none():
+                    skipped += 1
                     continue
 
-                subject = _decode_header(msg.get("Subject", ""))
+                subject = _decode_header(msg.get("Subject", "")) or "(제목없음)"
                 from_ = _decode_header(msg.get("From", ""))
                 to_ = _decode_header(msg.get("To", ""))
                 cc_ = _decode_header(msg.get("Cc", ""))
@@ -121,10 +127,12 @@ async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
                 import email.utils
                 date_ts = None
                 try:
-                    parsed = email.utils.parsedate_to_datetime(date_str)
-                    date_ts = parsed.timestamp()
+                    date_ts = email.utils.parsedate_to_datetime(date_str).timestamp()
                 except Exception:
                     pass
+
+                with open(path, "wb") as f:
+                    f.write(raw)
 
                 em = Email(
                     path=path,
@@ -136,6 +144,7 @@ async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
                     date_ts=date_ts,
                     status="unread",
                     owner_id=account.owner_id,
+                    account_id=account.id,
                 )
                 db.add(em)
                 imported += 1
@@ -149,7 +158,31 @@ async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
     except Exception as e:
         return {"error": str(e), "imported": 0}
 
-    return {"imported": imported, "errors": errors}
+    return {"imported": imported, "skipped": skipped, "errors": errors[:5]}
+
+
+async def fetch_all_accounts(db: AsyncSession, owner_id: int) -> dict:
+    """해당 유저의 모든 활성 계정 동기화"""
+    result = await db.execute(
+        select(EmailAccount).where(
+            EmailAccount.owner_id == owner_id,
+            EmailAccount.is_active == True
+        )
+    )
+    accounts = result.scalars().all()
+    if not accounts:
+        return {"total_imported": 0, "accounts": [], "message": "등록된 계정이 없습니다."}
+
+    results = []
+    total = 0
+    for acc in accounts:
+        r = await fetch_emails_pop3(db, acc.id)
+        r["account_name"] = acc.name
+        r["account_email"] = acc.email
+        results.append(r)
+        total += r.get("imported", 0)
+
+    return {"total_imported": total, "accounts": results}
 
 
 async def send_email_smtp(account_id: int, db: AsyncSession,

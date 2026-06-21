@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.services.email_account import (
     list_accounts, create_account, get_account, update_account, delete_account,
-    fetch_emails_pop3, send_email_smtp
+    fetch_emails_pop3, fetch_all_accounts, send_email_smtp
 )
 
 router = APIRouter(prefix="/email-accounts", tags=["이메일 계정"])
@@ -86,6 +86,12 @@ async def delete(account_id: int, db: AsyncSession = Depends(get_db),
     await _check_owner(account_id, db, current_user)
     await delete_account(db, account_id)
     return {"ok": True}
+
+
+@router.post("/sync-all")
+async def sync_all(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    """내 모든 활성 계정 동기화"""
+    return await fetch_all_accounts(db, owner_id=current_user.id)
 
 
 @router.post("/{account_id}/fetch")

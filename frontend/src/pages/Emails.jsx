@@ -77,6 +77,19 @@ export default function Emails() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['emails'] })
   })
 
+  const syncMut = useMutation({
+    mutationFn: () => api.post('/email-accounts/sync-all'),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['emails'] })
+      const data = res.data
+      const msg = data.accounts?.length
+        ? data.accounts.map(a => `${a.account_name}: ${a.imported ?? 0}건${a.error ? ' (' + a.error + ')' : ''}`).join('\n')
+        : data.message || '완료'
+      alert(`동기화 완료\n총 ${data.total_imported}건 수신\n\n${msg}`)
+    },
+    onError: (e) => alert('동기화 실패: ' + (e.response?.data?.detail || e.message))
+  })
+
   const taskMut = useMutation({
     mutationFn: ({ title, email_id }) => api.post('/tasks', { title, email_id, priority: 'normal' }),
     onSuccess: () => alert('할일이 생성되었습니다.')
@@ -102,20 +115,33 @@ export default function Emails() {
               className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
           </div>
 
-          {/* 가져오기: 계정 선택 + 버튼 */}
+          {/* 동기화 + EML 가져오기 */}
           <div className="flex items-center gap-2">
-            <select value={importAccountId} onChange={e => setImportAccountId(e.target.value)}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">계정 선택 (선택)</option>
-              {myAccounts.map(a => (
-                <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
-              ))}
-            </select>
-            <button onClick={() => fileRef.current.click()}
-              className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
-              EML 가져오기
+            <button
+              onClick={() => syncMut.mutate()}
+              disabled={syncMut.isPending || myAccounts.length === 0}
+              className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap font-medium"
+              title={myAccounts.length === 0 ? '이메일 계정을 먼저 등록하세요' : '등록된 계정에서 새 메일 가져오기'}
+            >
+              {syncMut.isPending
+                ? <><span className="animate-spin">↻</span> 동기화 중...</>
+                : <>↻ 메일 동기화</>
+              }
             </button>
-            <input ref={fileRef} type="file" accept=".eml" className="hidden" onChange={handleFileChange} />
+            <div className="flex items-center gap-1 ml-auto">
+              <select value={importAccountId} onChange={e => setImportAccountId(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[130px]">
+                <option value="">계정 선택</option>
+                {myAccounts.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              <button onClick={() => fileRef.current.click()}
+                className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                EML
+              </button>
+              <input ref={fileRef} type="file" accept=".eml" className="hidden" onChange={handleFileChange} />
+            </div>
           </div>
 
           <div className="flex gap-1 flex-wrap">
