@@ -9,12 +9,69 @@ const EMPTY_FORM = {
   smtp_host: '', smtp_port: 587, smtp_tls: true,
 }
 
+const PROVIDERS = [
+  {
+    id: 'gmail',
+    label: 'Gmail',
+    logo: 'G',
+    color: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100',
+    note: '구글 계정 → 보안 → 앱 비밀번호 발급 필요 (2단계 인증 ON)',
+    noteColor: 'text-amber-600 bg-amber-50',
+    preset: {
+      pop3_host: 'pop.gmail.com', pop3_port: 995, pop3_ssl: true,
+      smtp_host: 'smtp.gmail.com', smtp_port: 587, smtp_tls: true,
+    }
+  },
+  {
+    id: 'naver',
+    label: '네이버',
+    logo: 'N',
+    color: 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100',
+    note: '네이버 메일 → 환경설정 → POP3/IMAP 사용 설정 ON',
+    noteColor: 'text-green-700 bg-green-50',
+    preset: {
+      pop3_host: 'pop.naver.com', pop3_port: 995, pop3_ssl: true,
+      smtp_host: 'smtp.naver.com', smtp_port: 465, smtp_tls: false,
+    }
+  },
+  {
+    id: 'daum',
+    label: '다음/카카오',
+    logo: 'D',
+    color: 'bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100',
+    note: '다음 메일 → 환경설정 → 외부메일 POP3 허용 ON',
+    noteColor: 'text-yellow-700 bg-yellow-50',
+    preset: {
+      pop3_host: 'pop.daum.net', pop3_port: 995, pop3_ssl: true,
+      smtp_host: 'smtp.daum.net', smtp_port: 465, smtp_tls: false,
+    }
+  },
+  {
+    id: 'outlook',
+    label: 'Outlook',
+    logo: 'O',
+    color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100',
+    note: 'Microsoft 계정 → 앱 비밀번호 발급 필요',
+    noteColor: 'text-blue-700 bg-blue-50',
+    preset: {
+      pop3_host: 'outlook.office365.com', pop3_port: 995, pop3_ssl: true,
+      smtp_host: 'smtp-mail.outlook.com', smtp_port: 587, smtp_tls: true,
+    }
+  },
+]
+
 export default function EmailSettings() {
   const qc = useQueryClient()
   const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [selectedProvider, setSelectedProvider] = useState(null)
+
+  function applyProvider(provider) {
+    setSelectedProvider(provider.id)
+    setForm(p => ({ ...p, ...provider.preset }))
+  }
   const [fetchStatus, setFetchStatus] = useState({})
   const [showCompose, setShowCompose] = useState(null)
   const [compose, setCompose] = useState({ to: '', subject: '', body: '', cc: '' })
@@ -30,7 +87,7 @@ export default function EmailSettings() {
       : api.post('/email-accounts', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['email-accounts'] })
-      setShowForm(false); setEditId(null); setForm(EMPTY_FORM)
+      setShowForm(false); setEditId(null); setForm(EMPTY_FORM); setSelectedProvider(null)
     }
   })
 
@@ -79,6 +136,43 @@ export default function EmailSettings() {
       {showForm && (
         <div className="bg-white rounded-2xl p-5 mb-6 border border-slate-200 shadow-card">
           <h2 className="text-sm font-semibold text-slate-800 mb-4">{editId ? '계정 수정' : '새 계정 추가'}</h2>
+
+          {/* 서비스 프리셋 */}
+          {!editId && (
+            <div className="mb-5">
+              <label className="text-xs font-medium text-slate-400 mb-2 block">서비스 선택 (자동 설정)</label>
+              <div className="flex gap-2 flex-wrap">
+                {PROVIDERS.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => applyProvider(p)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${p.color} ${
+                      selectedProvider === p.id ? 'ring-2 ring-offset-1 ring-slate-400' : ''
+                    }`}
+                  >
+                    <span className="w-5 h-5 rounded flex items-center justify-center text-xs font-black">{p.logo}</span>
+                    {p.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => { setSelectedProvider(null); setForm(EMPTY_FORM) }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-500 hover:bg-slate-50 transition-all"
+                >
+                  직접 입력
+                </button>
+              </div>
+              {/* 선택된 서비스 안내 */}
+              {selectedProvider && (() => {
+                const p = PROVIDERS.find(p => p.id === selectedProvider)
+                return (
+                  <div className={`mt-2.5 text-xs px-3 py-2 rounded-xl font-medium ${p.noteColor}`}>
+                    ℹ {p.note}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3 mb-4">
             <Field label="계정 이름" value={form.name} onChange={F('name')} placeholder="회사 메일" cls={inputCls} />
             <Field label="이메일 주소" value={form.email} onChange={F('email')} placeholder="user@company.com" cls={inputCls} />
@@ -116,7 +210,7 @@ export default function EmailSettings() {
           </div>
 
           <div className="flex gap-2 justify-end">
-            <button onClick={() => { setShowForm(false); setEditId(null) }}
+            <button onClick={() => { setShowForm(false); setEditId(null); setSelectedProvider(null) }}
               className="text-sm text-slate-500 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
             <button onClick={() => { const d = { ...form }; if (!d.password) delete d.password; saveMut.mutate(d) }}
               disabled={saveMut.isPending}
