@@ -31,12 +31,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: int = payload.get("sub")
+        print(f"[DEBUG] token ok, user_id={user_id!r}", flush=True)
         if user_id is None:
+            print("[DEBUG] 401: sub is None", flush=True)
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        print(f"[DEBUG] 401: JWTError {e!r}", flush=True)
         raise credentials_exception
     user = await get_user_by_id(db, user_id)
     if not user:
+        print(f"[DEBUG] 401: user_id={user_id} not found in DB", flush=True)
         raise credentials_exception
     return user
 
