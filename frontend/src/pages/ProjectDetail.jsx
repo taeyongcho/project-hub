@@ -214,7 +214,7 @@ export default function ProjectDetail() {
             {l}
           </button>
         ))}
-        {!['members', 'wbs'].includes(tab) && (
+        {tab === 'kanban' && (
           <div className="ml-auto pb-1">
             <button onClick={() => setShowTask(true)}
               className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl font-medium transition-colors">
