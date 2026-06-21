@@ -27,6 +27,8 @@ export default function ProjectDetail() {
   const [taskForm, setTaskForm] = useState({ title: '', priority: 'normal', due_date: '', assigned_to_id: '', milestone_id: '' })
   const [showMs, setShowMs] = useState(false)
   const [msForm, setMsForm] = useState({ title: '', due_date: '' })
+  const [editMode, setEditMode] = useState(false)
+  const [editForm, setEditForm] = useState({})
 
   const { data: project } = useQuery({
     queryKey: ['project', id],
@@ -86,6 +88,26 @@ export default function ProjectDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project-members', id] })
   })
 
+  const projectEditMut = useMutation({
+    mutationFn: data => api.patch(`/projects/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['project', id] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      setEditMode(false)
+    }
+  })
+
+  const openEditMode = () => {
+    setEditForm({
+      name: project.name,
+      description: project.description || '',
+      color: project.color,
+      start_date: project.start_date || '',
+      end_date: project.end_date || '',
+    })
+    setEditMode(true)
+  }
+
   const memberUserIds = new Set(members.map(m => m.user_id))
 
   if (!project) return <div className="p-6 text-slate-400">로딩 중...</div>
@@ -101,27 +123,82 @@ export default function ProjectDetail() {
     <div className="p-6 h-full flex flex-col">
       {/* 헤더 */}
       <div className="mb-5">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="w-4 h-4 rounded-full" style={{ background: project.color }} />
-          <h1 className="text-xl font-bold text-slate-900">{project.name}</h1>
-          <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
-            project.status === 'active'
-              ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-slate-100 text-slate-500'
-          }`}>
-            {project.status === 'active' ? '진행중' : '완료'}
-          </span>
-        </div>
-        {project.description && <p className="text-sm text-slate-500 ml-7">{project.description}</p>}
-        <div className="flex items-center gap-6 mt-2 ml-7 text-xs text-slate-400">
-          <span className="font-medium">태스크 {project.done_tasks}/{project.total_tasks}</span>
-          <span>진행률 <span className="font-semibold text-slate-600">{project.progress}%</span></span>
-          {project.end_date && <span>마감 {dayjs(project.end_date).format('YYYY-MM-DD')}</span>}
-          {project.overdue_tasks > 0 && <span className="text-red-500 font-medium">지연 {project.overdue_tasks}개</span>}
-        </div>
-        <div className="ml-7 mt-2 w-64 bg-slate-200 rounded-full h-1.5">
-          <div className="h-1.5 rounded-full transition-all" style={{ width: `${project.progress}%`, background: project.color }} />
-        </div>
+        {editMode ? (
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-card mb-2">
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {[
+                ['프로젝트명 *', 'name', 'text'],
+                ['설명', 'description', 'text'],
+                ['시작일', 'start_date', 'date'],
+                ['완료 목표일', 'end_date', 'date'],
+              ].map(([label, key, type]) => (
+                <div key={key}>
+                  <label className="text-xs font-medium text-slate-500 mb-1 block">{label}</label>
+                  <input type={type} value={editForm[key]}
+                    onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
+                    className={inputCls} />
+                </div>
+              ))}
+            </div>
+            <div className="mb-3">
+              <label className="text-xs font-medium text-slate-500 mb-2 block">색상</label>
+              <div className="flex gap-2">
+                {['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'].map(c => (
+                  <button key={c} onClick={() => setEditForm(p => ({ ...p, color: c }))}
+                    className={`w-6 h-6 rounded-full border-2 transition-all ${editForm.color === c ? 'border-slate-900 scale-110' : 'border-transparent'}`}
+                    style={{ background: c }} />
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditMode(false)}
+                className="text-sm text-slate-500 hover:text-slate-800 px-3 py-1.5 transition-colors">취소</button>
+              <button
+                onClick={() => editForm.name && projectEditMut.mutate({
+                  ...editForm,
+                  start_date: editForm.start_date || null,
+                  end_date: editForm.end_date || null,
+                })}
+                disabled={projectEditMut.isPending}
+                className="text-sm bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-1.5 rounded-xl font-medium transition-colors">
+                {projectEditMut.isPending ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <span className="w-4 h-4 rounded-full" style={{ background: project.color }} />
+                <h1 className="text-xl font-bold text-slate-900">{project.name}</h1>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                  project.status === 'active'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {project.status === 'active' ? '진행중' : '완료'}
+                </span>
+              </div>
+              {project.description && <p className="text-sm text-slate-500 ml-7">{project.description}</p>}
+              <div className="flex items-center gap-6 mt-2 ml-7 text-xs text-slate-400">
+                <span className="font-medium">태스크 {project.done_tasks}/{project.total_tasks}</span>
+                <span>진행률 <span className="font-semibold text-slate-600">{project.progress}%</span></span>
+                {project.end_date && <span>마감 {dayjs(project.end_date).format('YYYY-MM-DD')}</span>}
+                {project.overdue_tasks > 0 && <span className="text-red-500 font-medium">지연 {project.overdue_tasks}개</span>}
+              </div>
+              <div className="ml-7 mt-2 w-64 bg-slate-200 rounded-full h-1.5">
+                <div className="h-1.5 rounded-full transition-all" style={{ width: `${project.progress}%`, background: project.color }} />
+              </div>
+            </div>
+            <button onClick={openEditMode}
+              className="text-xs text-slate-400 hover:text-slate-700 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-colors font-medium flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              수정
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 탭 */}
