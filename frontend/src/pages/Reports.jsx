@@ -16,20 +16,15 @@ export default function Reports() {
   })
 
   const genMut = useMutation({
-    mutationFn: (type) => api.post(`/reports/${type}`),
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['reports'] })
-      setSelected(data.data)
-    }
+    mutationFn: type => api.post(`/reports/${type}`),
+    onSuccess: data => { qc.invalidateQueries({ queryKey: ['reports'] }); setSelected(data.data) }
   })
 
-  const exportDocx = async (id) => {
+  const exportDocx = async id => {
     const res = await api.get(`/reports/${id}/export/docx`, { responseType: 'blob' })
     const url = URL.createObjectURL(res.data)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `report_${id}.docx`
-    a.click()
+    a.href = url; a.download = `report_${id}.docx`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -38,17 +33,15 @@ export default function Reports() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">보고서</h1>
+        <h1 className="text-2xl font-bold text-slate-900">보고서</h1>
         {user?.role === 'admin' && (
           <div className="flex gap-2">
-            <button onClick={() => genMut.mutate('weekly')}
-              disabled={genMut.isPending}
-              className="text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors">
+            <button onClick={() => genMut.mutate('weekly')} disabled={genMut.isPending}
+              className="text-sm bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-medium transition-colors">
               주간보고 생성
             </button>
-            <button onClick={() => genMut.mutate('monthly')}
-              disabled={genMut.isPending}
-              className="text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors">
+            <button onClick={() => genMut.mutate('monthly')} disabled={genMut.isPending}
+              className="text-sm bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-medium transition-colors">
               월간보고 생성
             </button>
           </div>
@@ -56,10 +49,10 @@ export default function Reports() {
       </div>
 
       <div className="flex gap-2 mb-5">
-        {[['weekly', '주간보고'], ['monthly', '월간보고']].map(([v, l]) => (
+        {[['weekly','주간보고'],['monthly','월간보고']].map(([v, l]) => (
           <button key={v} onClick={() => { setTab(v); setSelected(null) }}
-            className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
-              tab === v ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            className={`text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${
+              tab === v ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}>
             {l}
           </button>
@@ -67,20 +60,18 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {/* 목록 */}
         <div className="col-span-1 space-y-1">
           {reports.length === 0
-            ? <p className="text-slate-500 text-sm px-2">보고서가 없습니다</p>
+            ? <p className="text-slate-400 text-sm px-2 py-4">보고서가 없습니다</p>
             : reports.map(r => (
-              <button key={r.id}
-                onClick={() => setSelected(r)}
-                className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
+              <button key={r.id} onClick={() => setSelected(r)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors ${
                   displayReport?.id === r.id
-                    ? 'bg-blue-600/20 text-blue-300'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'text-slate-600 hover:bg-slate-100 border border-transparent'
                 }`}>
-                <div className="text-sm font-medium">{r.period}</div>
-                <div className="text-xs text-slate-600 mt-0.5">
+                <div className="text-sm font-semibold">{r.period}</div>
+                <div className="text-xs text-slate-400 mt-0.5">
                   {dayjs(r.generated_at).format('MM/DD HH:mm')} 생성
                 </div>
               </button>
@@ -88,34 +79,33 @@ export default function Reports() {
           }
         </div>
 
-        {/* 상세 */}
         <div className="col-span-3">
           {displayReport ? (
-            <div className="bg-[#1e293b] rounded-xl p-6">
-              <div className="flex items-center justify-between mb-5">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-card">
+              <div className="flex items-center justify-between mb-5 pb-5 border-b border-slate-100">
                 <div>
-                  <h2 className="text-lg font-bold text-white">
+                  <h2 className="text-lg font-bold text-slate-900">
                     {displayReport.type === 'weekly' ? '주간' : '월간'}업무보고
                   </h2>
-                  <p className="text-sm text-slate-400 mt-0.5">{displayReport.period}</p>
+                  <p className="text-sm text-slate-500 mt-0.5">{displayReport.period}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => exportDocx(displayReport.id)}
-                    className="text-xs border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg transition-colors">
-                    📄 Word 저장
-                  </button>
-                </div>
+                <button onClick={() => exportDocx(displayReport.id)}
+                  className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                  Word 저장
+                </button>
               </div>
 
-              {displayReport.type === 'weekly' ? (
-                <WeeklyContent content={displayReport.content} />
-              ) : (
-                <MonthlyContent content={displayReport.content} />
-              )}
+              {displayReport.type === 'weekly'
+                ? <WeeklyContent content={displayReport.content} />
+                : <MonthlyContent content={displayReport.content} />
+              }
             </div>
           ) : (
-            <div className="bg-[#1e293b] rounded-xl p-6 flex items-center justify-center h-64 text-slate-500">
-              보고서를 선택하거나 새로 생성하세요
+            <div className="bg-white rounded-2xl border border-slate-200 flex items-center justify-center h-64 text-slate-400">
+              <div className="text-center">
+                <div className="text-4xl mb-3">📊</div>
+                <div>보고서를 선택하거나 새로 생성하세요</div>
+              </div>
             </div>
           )}
         </div>
@@ -128,19 +118,17 @@ function WeeklyContent({ content }) {
   if (!content) return null
   return (
     <div className="space-y-5">
-      {/* 통계 */}
-      <div className="grid grid-cols-3 gap-4">
-        <StatBox label="완료 태스크" value={content.done_tasks} color="text-emerald-400" />
-        <StatBox label="지연 태스크" value={content.overdue_tasks} color={content.overdue_tasks > 0 ? 'text-red-400' : 'text-slate-400'} />
-        <StatBox label="처리 이메일" value={content.emails_processed} color="text-blue-400" />
+      <div className="grid grid-cols-3 gap-3">
+        <StatBox label="완료 태스크" value={content.done_tasks} color="text-emerald-600" bg="bg-emerald-50" />
+        <StatBox label="지연 태스크" value={content.overdue_tasks}
+          color={content.overdue_tasks > 0 ? 'text-red-600' : 'text-slate-400'}
+          bg={content.overdue_tasks > 0 ? 'bg-red-50' : 'bg-slate-50'} />
+        <StatBox label="처리 이메일" value={content.emails_processed} color="text-blue-600" bg="bg-blue-50" />
       </div>
-
-      <Section title="✅ 완료 업무" items={content.completed_work} emptyText="기록된 완료 업무 없음" />
-      <Section title="⚠️ 이슈 / 리스크" items={content.issues} emptyText="이슈 없음" itemColor="text-amber-300" />
-
-      <div className="text-xs text-slate-600 pt-2 border-t border-slate-700">
-        생성: {dayjs(content.generated_at).format('YYYY-MM-DD HH:mm')} ·
-        기간: {content.period_start} ~ {content.period_end}
+      <Section title="완료 업무" items={content.completed_work} emptyText="기록된 완료 업무 없음" />
+      <Section title="이슈 / 리스크" items={content.issues} emptyText="이슈 없음" itemColor="text-amber-700" />
+      <div className="text-xs text-slate-400 pt-3 border-t border-slate-100">
+        생성: {dayjs(content.generated_at).format('YYYY-MM-DD HH:mm')} · 기간: {content.period_start} ~ {content.period_end}
       </div>
     </div>
   )
@@ -150,25 +138,26 @@ function MonthlyContent({ content }) {
   if (!content) return null
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-4">
-        <StatBox label="완료 태스크" value={content.total_done_tasks} color="text-emerald-400" />
-        <StatBox label="전체 태스크" value={content.total_tasks} color="text-blue-400" />
-        <StatBox label="마감 준수율" value={`${content.deadline_rate}%`} color={content.deadline_rate >= 80 ? 'text-emerald-400' : 'text-amber-400'} />
+      <div className="grid grid-cols-3 gap-3">
+        <StatBox label="완료 태스크" value={content.total_done_tasks} color="text-emerald-600" bg="bg-emerald-50" />
+        <StatBox label="전체 태스크" value={content.total_tasks} color="text-blue-600" bg="bg-blue-50" />
+        <StatBox label="마감 준수율" value={`${content.deadline_rate}%`}
+          color={content.deadline_rate >= 80 ? 'text-emerald-600' : 'text-amber-600'}
+          bg={content.deadline_rate >= 80 ? 'bg-emerald-50' : 'bg-amber-50'} />
       </div>
-
       <div>
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">팀원별 현황</h3>
-        <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">팀원별 현황</h3>
+        <div className="space-y-3">
           {content.user_stats?.map((u, i) => {
             const total = u.done + u.in_progress || 1
             const pct = Math.round(u.done / total * 100)
             return (
               <div key={i}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-300">{u.name}</span>
-                  <span className="text-slate-500">완료 {u.done} / 진행 {u.in_progress}</span>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="font-medium text-slate-700">{u.name}</span>
+                  <span className="text-slate-400">완료 {u.done} / 진행 {u.in_progress}</span>
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-1.5">
+                <div className="w-full bg-slate-100 rounded-full h-1.5">
                   <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
                 </div>
               </div>
@@ -176,33 +165,32 @@ function MonthlyContent({ content }) {
           })}
         </div>
       </div>
-
-      <div className="text-xs text-slate-600 pt-2 border-t border-slate-700">
+      <div className="text-xs text-slate-400 pt-3 border-t border-slate-100">
         기간: {content.period} · 생성: {dayjs(content.generated_at).format('YYYY-MM-DD HH:mm')}
       </div>
     </div>
   )
 }
 
-function StatBox({ label, value, color }) {
+function StatBox({ label, value, color, bg }) {
   return (
-    <div className="bg-[#0f172a] rounded-xl p-4 text-center">
+    <div className={`${bg} rounded-xl p-4 text-center`}>
       <div className={`text-3xl font-bold ${color}`}>{value ?? '-'}</div>
-      <div className="text-xs text-slate-500 mt-1">{label}</div>
+      <div className="text-xs text-slate-500 mt-1 font-medium">{label}</div>
     </div>
   )
 }
 
-function Section({ title, items, emptyText, itemColor = 'text-slate-300' }) {
+function Section({ title, items, emptyText, itemColor = 'text-slate-700' }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
+      <h3 className="text-sm font-semibold text-slate-700 mb-2">{title}</h3>
       {!items?.length
-        ? <p className="text-slate-600 text-sm">{emptyText}</p>
+        ? <p className="text-slate-400 text-sm">{emptyText}</p>
         : <ul className="space-y-1.5">
           {items.map((item, i) => (
             <li key={i} className={`text-sm ${itemColor} flex gap-2`}>
-              <span className="text-slate-600 flex-shrink-0">·</span>
+              <span className="text-slate-300 flex-shrink-0">·</span>
               <span className="whitespace-pre-wrap">{item}</span>
             </li>
           ))}

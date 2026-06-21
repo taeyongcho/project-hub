@@ -1,24 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
-import useAuth from '../store/auth'
 import dayjs from 'dayjs'
 
 export default function WorkLog() {
   const qc = useQueryClient()
-  const { user } = useAuth()
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [form, setForm] = useState({ content: '', issues: '', next_plan: '' })
   const [saved, setSaved] = useState(false)
-
-  const { data: log } = useQuery({
-    queryKey: ['worklog', date],
-    queryFn: () => api.get(`/work-logs?from_date=${date}&to_date=${date}`).then(r => r.data[0] || null),
-    onSuccess: data => {
-      if (data) setForm({ content: data.content, issues: data.issues, next_plan: data.next_plan })
-      else setForm({ content: '', issues: '', next_plan: '' })
-    }
-  })
 
   const { data: recentLogs = [] } = useQuery({
     queryKey: ['recent-logs'],
@@ -38,11 +27,6 @@ export default function WorkLog() {
     }
   })
 
-  function handleSave() {
-    saveMut.mutate({ log_date: date, ...form })
-  }
-
-  // 날짜 변경 시 해당 일지 로드
   function handleDateChange(d) {
     setDate(d)
     const existing = recentLogs.find(l => l.log_date === d)
@@ -50,91 +34,61 @@ export default function WorkLog() {
     else setForm({ content: '', issues: '', next_plan: '' })
   }
 
+  const TA = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none'
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">업무일지</h1>
-        <div className="flex items-center gap-2">
-          <input type="date" value={date} onChange={e => handleDateChange(e.target.value)}
-            className="bg-[#1e293b] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">업무일지</h1>
+          <p className="text-sm text-slate-400 mt-0.5">{dayjs(date).format('YYYY년 MM월 DD일 dddd')}</p>
         </div>
+        <input type="date" value={date} onChange={e => handleDateChange(e.target.value)}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
       </div>
 
       <div className="grid grid-cols-3 gap-5">
-        {/* 작성 영역 */}
         <div className="col-span-2 space-y-4">
-          <div className="bg-[#1e293b] rounded-xl p-5">
-            <label className="block text-sm font-semibold text-white mb-2">
-              ✅ 오늘 완료한 업무
-            </label>
-            <textarea
-              value={form.content}
-              onChange={e => setForm(p => ({ ...p, content: e.target.value }))}
-              rows={6}
-              placeholder="오늘 완료하거나 진행한 업무를 입력하세요..."
-              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
-            />
-          </div>
-
-          <div className="bg-[#1e293b] rounded-xl p-5">
-            <label className="block text-sm font-semibold text-white mb-2">
-              ⚠️ 이슈 / 리스크
-            </label>
-            <textarea
-              value={form.issues}
-              onChange={e => setForm(p => ({ ...p, issues: e.target.value }))}
-              rows={4}
-              placeholder="오늘 발생한 이슈나 리스크를 기록하세요..."
-              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
-            />
-          </div>
-
-          <div className="bg-[#1e293b] rounded-xl p-5">
-            <label className="block text-sm font-semibold text-white mb-2">
-              📋 다음 업무 계획
-            </label>
-            <textarea
-              value={form.next_plan}
-              onChange={e => setForm(p => ({ ...p, next_plan: e.target.value }))}
-              rows={4}
-              placeholder="내일 또는 다음에 처리할 업무 계획..."
-              className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500 resize-none"
-            />
-          </div>
+          {[
+            { label: '오늘 완료한 업무', key: 'content', rows: 6, ph: '오늘 완료하거나 진행한 업무를 입력하세요...' },
+            { label: '이슈 / 리스크', key: 'issues', rows: 4, ph: '오늘 발생한 이슈나 리스크를 기록하세요...' },
+            { label: '다음 업무 계획', key: 'next_plan', rows: 4, ph: '내일 또는 다음에 처리할 업무 계획...' },
+          ].map(({ label, key, rows, ph }) => (
+            <div key={key} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card">
+              <label className="block text-sm font-semibold text-slate-700 mb-3">{label}</label>
+              <textarea value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                rows={rows} placeholder={ph} className={TA} />
+            </div>
+          ))}
 
           <div className="flex items-center justify-between">
-            <span className={`text-sm transition-opacity ${saved ? 'text-emerald-400 opacity-100' : 'opacity-0'}`}>
-              ✓ 저장되었습니다
+            <span className={`text-sm font-medium text-emerald-600 transition-opacity ${saved ? 'opacity-100' : 'opacity-0'}`}>
+              저장되었습니다 ✓
             </span>
-            <button onClick={handleSave}
-              className="text-sm bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg transition-colors font-semibold">
+            <button onClick={() => saveMut.mutate({ log_date: date, ...form })}
+              disabled={saveMut.isPending}
+              className="text-sm bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors">
               저장
             </button>
           </div>
         </div>
 
-        {/* 최근 일지 목록 */}
-        <div className="bg-[#1e293b] rounded-xl p-4 h-fit">
-          <h2 className="text-sm font-semibold text-white mb-3">최근 14일</h2>
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-card h-fit">
+          <h2 className="text-sm font-semibold text-slate-800 mb-3">최근 14일</h2>
           <div className="space-y-1">
             {recentLogs.length === 0
-              ? <p className="text-slate-500 text-xs">작성된 일지가 없습니다</p>
+              ? <p className="text-slate-400 text-xs py-2">작성된 일지가 없습니다</p>
               : recentLogs.map(l => (
                 <button key={l.id}
-                  onClick={() => {
-                    setDate(l.log_date)
-                    setForm({ content: l.content, issues: l.issues, next_plan: l.next_plan })
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                  onClick={() => { setDate(l.log_date); setForm({ content: l.content, issues: l.issues, next_plan: l.next_plan }) }}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors ${
                     date === l.log_date
-                      ? 'bg-blue-600/20 text-blue-300'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}>
                   <div className="font-medium">{dayjs(l.log_date).format('MM월 DD일 (ddd)')}</div>
-                  {l.content && (
-                    <div className="text-xs text-slate-600 truncate mt-0.5">{l.content.slice(0, 40)}</div>
-                  )}
-                  {l.issues && <div className="text-xs text-amber-700 mt-0.5">⚠ 이슈 있음</div>}
+                  {l.content && <div className="text-xs text-slate-400 truncate mt-0.5">{l.content.slice(0, 35)}</div>}
+                  {l.issues && <div className="text-xs text-amber-500 font-medium mt-0.5">⚠ 이슈 있음</div>}
                 </button>
               ))
             }

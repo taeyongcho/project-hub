@@ -4,11 +4,11 @@ import api from '../api/client'
 import dayjs from 'dayjs'
 
 const STATUS_LABELS = {
-  unread: { label: '미확인', color: 'bg-slate-700 text-slate-300' },
-  pending: { label: '답장필요', color: 'bg-red-900/60 text-red-300' },
-  replied: { label: '답장완료', color: 'bg-blue-900/60 text-blue-300' },
-  done: { label: '처리완료', color: 'bg-emerald-900/60 text-emerald-300' },
-  waiting: { label: '대기중', color: 'bg-amber-900/60 text-amber-300' },
+  unread:  { label: '미확인',  color: 'bg-slate-100 text-slate-600' },
+  pending: { label: '답장필요', color: 'bg-red-100 text-red-600' },
+  replied: { label: '답장완료', color: 'bg-blue-100 text-blue-600' },
+  done:    { label: '처리완료', color: 'bg-emerald-100 text-emerald-700' },
+  waiting: { label: '대기중',  color: 'bg-amber-100 text-amber-700' },
 }
 
 export default function Emails() {
@@ -22,11 +22,7 @@ export default function Emails() {
   const { data: emails = [] } = useQuery({
     queryKey: ['emails', filter, search],
     queryFn: () => api.get('/emails', {
-      params: {
-        status: filter === 'all' ? undefined : filter,
-        q: search || undefined,
-        limit: 200
-      }
+      params: { status: filter === 'all' ? undefined : filter, q: search || undefined, limit: 200 }
     }).then(r => r.data)
   })
 
@@ -53,18 +49,11 @@ export default function Emails() {
 
   const memoMut = useMutation({
     mutationFn: ({ id, content }) => api.post(`/emails/${id}/memos`, { content }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['email-memos', selected?.id] })
-      setMemo('')
-    }
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['email-memos', selected?.id] }); setMemo('') }
   })
 
   const importMut = useMutation({
-    mutationFn: (file) => {
-      const fd = new FormData()
-      fd.append('file', file)
-      return api.post('/emails/import', fd)
-    },
+    mutationFn: (file) => { const fd = new FormData(); fd.append('file', file); return api.post('/emails/import', fd) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['emails'] })
   })
 
@@ -76,30 +65,23 @@ export default function Emails() {
   return (
     <div className="flex h-full">
       {/* 목록 패널 */}
-      <div className="w-80 flex-shrink-0 border-r border-slate-800 flex flex-col">
-        {/* 상단 */}
-        <div className="p-3 border-b border-slate-800 space-y-2">
+      <div className="w-72 flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
+        <div className="p-3 border-b border-slate-100 space-y-2">
           <div className="flex items-center gap-2">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="검색..."
-              className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-            />
-            <button
-              onClick={() => fileRef.current.click()}
-              className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg transition-colors"
-            >
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <button onClick={() => fileRef.current.click()}
+              className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
               EML 가져오기
             </button>
             <input ref={fileRef} type="file" accept=".eml" className="hidden"
               onChange={e => e.target.files[0] && importMut.mutate(e.target.files[0])} />
           </div>
           <div className="flex gap-1 flex-wrap">
-            {[['all', '전체'], ['pending', '답장필요'], ['unread', '미확인'], ['done', '완료'], ['waiting', '대기']].map(([v, l]) => (
+            {[['all','전체'],['pending','답장필요'],['unread','미확인'],['done','완료'],['waiting','대기']].map(([v, l]) => (
               <button key={v} onClick={() => setFilter(v)}
-                className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                  filter === v ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                  filter === v ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}>
                 {l}
               </button>
@@ -107,24 +89,23 @@ export default function Emails() {
           </div>
         </div>
 
-        {/* 메일 목록 */}
         <div className="flex-1 overflow-y-auto">
           {emails.length === 0
-            ? <div className="p-6 text-center text-slate-500 text-sm">메일이 없습니다</div>
+            ? <div className="p-6 text-center text-slate-400 text-sm">메일이 없습니다</div>
             : emails.map(e => (
-              <div key={e.id}
-                onClick={() => setSelected(e)}
-                className={`p-3 border-b border-slate-800 cursor-pointer transition-colors ${
-                  selected?.id === e.id ? 'bg-blue-900/20 border-l-2 border-l-blue-500' : 'hover:bg-slate-800/40'
-                }`}
-              >
+              <div key={e.id} onClick={() => setSelected(e)}
+                className={`p-3 border-b border-slate-100 cursor-pointer transition-colors ${
+                  selected?.id === e.id
+                    ? 'bg-blue-50 border-l-2 border-l-blue-500'
+                    : 'hover:bg-slate-50'
+                }`}>
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <span className="text-xs text-slate-400 truncate flex-1">{e.from_ || '(발신자 없음)'}</span>
-                  <span className="text-xs text-slate-600 flex-shrink-0">
+                  <span className="text-xs text-slate-600 truncate flex-1 font-medium">{e.from_ || '(발신자 없음)'}</span>
+                  <span className="text-xs text-slate-400 flex-shrink-0">
                     {e.date_ts ? dayjs(e.date_ts * 1000).format('MM/DD') : ''}
                   </span>
                 </div>
-                <div className="text-sm text-slate-200 truncate mb-1.5">{e.subject}</div>
+                <div className="text-sm text-slate-800 truncate mb-1.5 font-medium">{e.subject}</div>
                 <StatusBadge status={e.status} />
               </div>
             ))
@@ -135,27 +116,27 @@ export default function Emails() {
       {/* 상세 패널 */}
       {selected ? (
         <div className="flex-1 overflow-y-auto p-6">
-          <h2 className="text-lg font-semibold text-white mb-2">{detail?.subject || selected.subject}</h2>
-          <div className="text-sm text-slate-400 space-y-1 mb-4">
-            <div><span className="text-slate-600">보낸 이:</span> {detail?.from_ || selected.from_}</div>
-            <div><span className="text-slate-600">날짜:</span> {
-              selected.date_ts ? dayjs(selected.date_ts * 1000).format('YYYY-MM-DD HH:mm') : '-'
-            }</div>
+          <h2 className="text-lg font-bold text-slate-900 mb-3">{detail?.subject || selected.subject}</h2>
+          <div className="text-sm text-slate-500 space-y-1 mb-5 pb-5 border-b border-slate-100">
+            <div><span className="text-slate-400 w-16 inline-block">보낸 이</span>{detail?.from_ || selected.from_}</div>
+            <div>
+              <span className="text-slate-400 w-16 inline-block">날짜</span>
+              {selected.date_ts ? dayjs(selected.date_ts * 1000).format('YYYY-MM-DD HH:mm') : '-'}
+            </div>
             {selected.status === 'pending' && (
-              <div className="text-red-400 font-semibold">⚠️ 답장 대기 중</div>
+              <div className="text-red-500 font-semibold mt-1">⚠ 답장 대기 중</div>
             )}
           </div>
 
-          {/* 액션 버튼 */}
+          {/* 상태 변경 버튼 */}
           <div className="flex gap-2 mb-5 flex-wrap">
             {Object.entries(STATUS_LABELS).map(([s, { label }]) => (
-              <button key={s}
-                onClick={() => statusMut.mutate({ id: selected.id, status: s })}
+              <button key={s} onClick={() => statusMut.mutate({ id: selected.id, status: s })}
                 disabled={selected.status === s}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
                   selected.status === s
-                    ? 'border-blue-500 bg-blue-600/20 text-blue-300'
-                    : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
                 }`}>
                 {label}
               </button>
@@ -165,49 +146,45 @@ export default function Emails() {
                 const title = prompt('할일 제목:', `[메일] ${selected.subject}`)
                 if (title) taskMut.mutate({ title, email_id: selected.id })
               }}
-              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors"
-            >
-              ✓ 할일 생성
+              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors">
+              + 할일 생성
             </button>
           </div>
 
           {/* 본문 placeholder */}
-          <div className="bg-[#0f172a] rounded-xl p-4 mb-5 text-sm text-slate-400 min-h-32">
-            <p className="text-slate-600 text-xs mb-2">본문은 EML 파일에서 직접 읽습니다</p>
-            <p>(상세 본문 뷰어는 백엔드 연동 후 표시)</p>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 text-sm text-slate-500 min-h-32">
+            <p className="text-slate-400 text-xs">(이메일 본문은 EML 파일에서 직접 읽습니다)</p>
           </div>
 
           {/* 메모 */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">📝 메모</h3>
+            <h3 className="text-sm font-semibold text-slate-800 mb-3">메모</h3>
             <div className="space-y-2 mb-3">
               {memos.map(m => (
-                <div key={m.id} className="bg-[#1e293b] rounded-lg p-3">
-                  <p className="text-sm text-slate-300">{m.content}</p>
-                  <p className="text-xs text-slate-600 mt-1">{dayjs(m.created_at).format('YYYY-MM-DD HH:mm')}</p>
+                <div key={m.id} className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                  <p className="text-sm text-slate-700">{m.content}</p>
+                  <p className="text-xs text-slate-400 mt-1">{dayjs(m.created_at).format('YYYY-MM-DD HH:mm')}</p>
                 </div>
               ))}
             </div>
             <div className="flex gap-2">
-              <input
-                value={memo}
-                onChange={e => setMemo(e.target.value)}
+              <input value={memo} onChange={e => setMemo(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && memo && memoMut.mutate({ id: selected.id, content: memo })}
                 placeholder="메모 입력 후 Enter..."
-                className="flex-1 bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                onClick={() => memo && memoMut.mutate({ id: selected.id, content: memo })}
-                className="text-xs px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
-              >
+                className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              <button onClick={() => memo && memoMut.mutate({ id: selected.id, content: memo })}
+                className="text-sm px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-colors">
                 저장
               </button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-slate-600">
-          메일을 선택하세요
+        <div className="flex-1 flex items-center justify-center text-slate-400">
+          <div className="text-center">
+            <div className="text-4xl mb-3">✉</div>
+            <div>메일을 선택하세요</div>
+          </div>
         </div>
       )}
     </div>
@@ -216,5 +193,5 @@ export default function Emails() {
 
 function StatusBadge({ status }) {
   const s = STATUS_LABELS[status] || STATUS_LABELS.unread
-  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.color}`}>{s.label}</span>
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${s.color}`}>{s.label}</span>
 }
