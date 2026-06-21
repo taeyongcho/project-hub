@@ -1,7 +1,13 @@
+networks:
+  hub:
+    driver: bridge
+
 services:
   db:
     image: postgres:16-alpine
     restart: always
+    networks:
+      - hub
     environment:
       POSTGRES_DB: projecthub
       POSTGRES_USER: projecthub
@@ -19,6 +25,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    networks:
+      - hub
     volumes:
       - redis_data:/data
     healthcheck:
@@ -30,6 +38,8 @@ services:
   backend:
     build: ./backend
     restart: on-failure
+    networks:
+      - hub
     environment:
       DATABASE_URL: postgresql+asyncpg://projecthub:${DB_PASSWORD}@db:5432/projecthub
       REDIS_URL: redis://redis:6379
@@ -48,12 +58,16 @@ services:
   frontend:
     build: ./frontend
     restart: always
+    networks:
+      - hub
     depends_on:
       - backend
 
   nginx:
     image: nginx:alpine
     restart: always
+    networks:
+      - hub
     ports:
       - "8080:80"
     volumes:
