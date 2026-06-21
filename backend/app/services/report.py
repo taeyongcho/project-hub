@@ -1,0 +1,183 @@
+import io
+from datetime import datetime, date, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
+from app.models.report import Report
+from app.models.task import Task
+from app.models.email import Email
+from app.models.work_log import WorkLog
+from app.models.user import User
+
+
+async def _collect_weekly_data(db: AsyncSession) -> dict:
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = today
+
+    done_tasks = await db.scalar(select(func.count(Task.id)).where(
+        Task.status == "done",
+        func.date(Task.done_at) >= week_start,
+        func.date(Task.done_at) <= week_end
+    ))
+    overdue = await db.scalar(select(func.count(Task.id)).where(
+        Task.status != "done", Task.due_date < today
+    ))
+    emails_done = await db.scalar(select(func.count(Email.id)).where(Email.status == "done"))
+
+    logs_result = await db.execute(select(WorkLog).where(
+        WorkLog.log_date >= week_start, WorkLog.log_date <= week_end
+    ))
+    logs = logs_result.scalars().all()
+
+    issues = [l.issues for l in logs if l.issues]
+    contents = [l.content for l in logs if l.content]
+
+    return {
+        "period_start": str(week_start),
+        "period_end": str(week_end),
+        "done_tasks": done_tasks or 0,
+        "overdue_tasks": overdue or 0,
+        "emails_processed": emails_done or 0,
+        "completed_work": contents,
+        "issues": issues,
+        "generated_at": str(datetime.now()),
+    }
+
+
+async def _collect_monthly_data(db: AsyncSession) -> dict:
+    today = date.today()
+    month_start = today.replace(day=1)
+
+    users_result = await db.execute(select(User).where(User.is_active == True))
+    users = users_result.scalars().all()
+
+    user_stats = []
+    for u in users:
+        done = await db.scalar(select(func.count(Task.id)).where(
+            Task.assigned_to_id == u.id, Task.status == "done",
+            func.date(Task.done_at) >= month_start
+        ))
+        in_progress = await db.scalar(select(func.count(Task.id)).where(
+            Task.assigned_to_id == u.id, Task.status.in_(["todo", "in_progress", "review"])
+        ))
+        user_stats.append({"name": u.name, "done": done or 0, "in_progress": in_progress or 0})
+
+    total_done = await db.scalar(select(func.count(Task.id)).where(
+        Task.status == "done", func.date(Task.done_at) >= month_start
+    ))
+    total_tasks = await db.scalar(select(func.count(Task.id)).where(
+        func.date(Task.created_at) >= month_start
+    ))
+
+    return {
+        "period": str(today.strftime("%Y-%m")),
+        "total_done_tasks": total_done or 0,
+        "total_tasks": total_tasks or 0,
+        "deadline_rate": round((total_done / total_tasks * 100) if total_tasks else 0),
+        "user_stats": user_stats,
+        "generated_at": str(datetime.now()),
+    }
+
+
+async def generate_weekly(db: AsyncSession, user_id: int):
+    today = date.today()
+    period = f"{today.isocalendar()[0]}-W{today.isocalendar()[1]:02d}"
+    data = await _collect_weekly_data(db)
+    return await _save_report(db, "weekly", period, data, user_id)
+
+
+async def generate_monthly(db: AsyncSession, user_id: int):
+    today = date.today()
+    period = today.strftime("%Y-%m")
+    data = await _collect_monthly_data(db)
+    return await _save_report(db, "monthly", period, data, user_id)
+
+
+async def _save_report(db: AsyncSession, type_: str, period: str, content: dict, user_id: int):
+    result = await db.execute(select(Report).where(Report.type == type_, Report.period == period))
+    report = result.scalar_one_or_none()
+    if report:
+        report.content = content
+    else:
+        report = Report(type=type_, period=period, content=content, created_by_id=user_id)
+        db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return _r(report)
+
+
+async def list_reports(db: AsyncSession, type_: str | None):
+    q = select(Report)
+    if type_:
+        q = q.where(Report.type == type_)
+    q = q.order_by(Report.generated_at.desc())
+    result = await db.execute(q)
+    return [_r(r) for r in result.scalars().all()]
+
+
+async def get_report(db: AsyncSession, report_id: int):
+    result = await db.execute(select(Report).where(Report.id == report_id))
+    r = result.scalar_one_or_none()
+    return _r(r) if r else None
+
+
+async def update_report(db: AsyncSession, report_id: int, content: dict):
+    result = await db.execute(select(Report).where(Report.id == report_id))
+    r = result.scalar_one_or_none()
+    if r:
+        r.content = content
+        await db.commit()
+        await db.refresh(r)
+    return _r(r)
+
+
+async def export_to_docx(db: AsyncSession, report_id: int) -> io.BytesIO:
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    r = await get_report(db, report_id)
+    doc = Document()
+    doc.add_heading(f"{'주간' if r['type'] == 'weekly' else '월간'}업무보고 — {r['period']}", 0)
+    content = r["content"]
+
+    if r["type"] == "weekly":
+        doc.add_heading("실적 요약", 1)
+        table = doc.add_table(rows=1, cols=3)
+        table.style = "Table Grid"
+        hdr = table.rows[0].cells
+        hdr[0].text, hdr[1].text, hdr[2].text = "완료 태스크", "지연 태스크", "처리 이메일"
+        row = table.add_row().cells
+        row[0].text = str(content.get("done_tasks", 0))
+        row[1].text = str(content.get("overdue_tasks", 0))
+        row[2].text = str(content.get("emails_processed", 0))
+
+        doc.add_heading("완료 업무", 1)
+        for item in content.get("completed_work", []):
+            doc.add_paragraph(item, style="List Bullet")
+
+        doc.add_heading("이슈 / 리스크", 1)
+        for item in content.get("issues", []):
+            doc.add_paragraph(item, style="List Bullet")
+
+    elif r["type"] == "monthly":
+        doc.add_heading("팀원별 업무 현황", 1)
+        table = doc.add_table(rows=1, cols=3)
+        table.style = "Table Grid"
+        hdr = table.rows[0].cells
+        hdr[0].text, hdr[1].text, hdr[2].text = "이름", "완료", "진행중"
+        for us in content.get("user_stats", []):
+            row = table.add_row().cells
+            row[0].text = us["name"]
+            row[1].text = str(us["done"])
+            row[2].text = str(us["in_progress"])
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def _r(r: Report) -> dict:
+    if not r:
+        return None
+    return {"id": r.id, "type": r.type, "period": r.period,
+            "content": r.content, "generated_at": str(r.generated_at)}
