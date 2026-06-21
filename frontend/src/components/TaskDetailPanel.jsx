@@ -70,6 +70,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
     mutationFn: data => api.patch(`/tasks/${taskId}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['task', taskId] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
       qc.invalidateQueries({ queryKey: ['all-tasks'] })
       qc.invalidateQueries({ queryKey: ['dashboard-summary'] })
     },
