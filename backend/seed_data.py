@@ -40,7 +40,7 @@ async def create_users(db):
         u = existing.scalar_one_or_none()
         if not u:
             u = User(name=name, email=email,
-                     hashed_password=hash_password("1"), role=role, is_active=True)
+                     password_hash=hash_password("1"), role=role, is_active=True)
             db.add(u)
             await db.flush()
         users.append(u)
