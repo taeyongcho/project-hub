@@ -108,7 +108,7 @@ export default function Emails() {
   return (
     <div className="flex h-full">
       {/* 목록 패널 */}
-      <div className="w-[400px] flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
+      <div className="w-[450px] flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
         <div className="p-3 border-b border-slate-100 space-y-2">
           <div className="flex items-center gap-2">
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
@@ -189,7 +189,7 @@ export default function Emails() {
 
       {/* 상세 패널 */}
       {selected ? (
-        <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
+        <div className="flex-1 overflow-y-auto p-6">
           {/* 제목 + 삭제 */}
           <div className="flex items-start justify-between gap-4 mb-3">
             <h2 className="text-lg font-bold text-slate-900 leading-tight flex-1">
@@ -272,12 +272,12 @@ export default function Emails() {
                   <iframe
                     srcDoc={bodyHtml}
                     title="email-body"
-                    className="w-full min-h-[400px] bg-white"
+                    className="w-full min-h-[600px] bg-white"
                     sandbox="allow-same-origin"
                   />
                 </div>
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto font-mono">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[700px] overflow-y-auto font-mono">
                   {bodyText || '(텍스트 본문 없음 — HTML 보기로 전환하세요)'}
                 </div>
               )
