@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useOutletContext } from 'react-router-dom'
 import api from '../api/client'
 import useAuth from '../store/auth'
 import dayjs from 'dayjs'
@@ -17,6 +18,7 @@ const STATUS_COLORS = {
 export default function Tasks() {
   const qc = useQueryClient()
   const { user } = useAuth()
+  const { onSelectTask } = useOutletContext()
   const [filter, setFilter] = useState('mine')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', priority: 'normal', due_date: '', project_id: '', assigned_to_id: '' })
@@ -149,9 +151,11 @@ export default function Tasks() {
 
                 return (
                   <div key={t.id}
-                    className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-slate-200 hover:shadow-card transition-all group">
+                    className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-slate-200 hover:shadow-card transition-all group cursor-pointer"
+                    onClick={() => onSelectTask(t.id)}>
                     <input type="checkbox" checked={t.status === 'done'}
-                      onChange={e => statusMut.mutate({ id: t.id, status: e.target.checked ? 'done' : 'todo' })}
+                      onChange={e => { e.stopPropagation(); statusMut.mutate({ id: t.id, status: e.target.checked ? 'done' : 'todo' }) }}
+                      onClick={e => e.stopPropagation()}
                       className="w-4 h-4 accent-slate-900 flex-shrink-0 rounded" />
                     <span className={`flex-1 text-sm font-medium ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
                       {t.title}
@@ -170,7 +174,7 @@ export default function Tasks() {
                           {dayjs(t.due_date).format('MM/DD')}
                         </span>
                       )}
-                      <button onClick={() => deleteMut.mutate(t.id)}
+                      <button onClick={e => { e.stopPropagation(); deleteMut.mutate(t.id) }}
                         className="text-slate-300 hover:text-red-400 transition-colors">✕</button>
                     </div>
                   </div>

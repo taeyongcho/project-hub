@@ -61,7 +61,6 @@ export default function EmailSettings() {
     return e => setForm(p => ({ ...p, [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
   }
 
-  const isAdmin = user?.role === 'admin'
   const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
   return (
@@ -71,12 +70,10 @@ export default function EmailSettings() {
           <h1 className="text-2xl font-bold text-slate-900">이메일 계정 설정</h1>
           <p className="text-sm text-slate-400 mt-0.5">POP3 수신 / SMTP 발신 계정 관리</p>
         </div>
-        {isAdmin && (
-          <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY_FORM) }}
-            className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
-            + 계정 추가
-          </button>
-        )}
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm(EMPTY_FORM) }}
+          className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
+          + 내 계정 추가
+        </button>
       </div>
 
       {showForm && (
@@ -134,7 +131,7 @@ export default function EmailSettings() {
         <div className="text-center py-16 text-slate-400">
           <div className="text-5xl mb-3">📭</div>
           <div className="font-medium">등록된 이메일 계정이 없습니다.</div>
-          {isAdmin && <div className="text-xs mt-1 text-slate-400">+ 계정 추가 버튼으로 POP3/SMTP 계정을 등록하세요.</div>}
+          <div className="text-xs mt-1 text-slate-400">+ 내 계정 추가 버튼으로 POP3/SMTP 계정을 등록하세요.</div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -152,18 +149,16 @@ export default function EmailSettings() {
                   </div>
                   <div className="text-sm text-slate-500 mt-0.5">{acc.email}</div>
                 </div>
-                {isAdmin && (
-                  <div className="flex gap-2">
-                    <button onClick={() => openEdit(acc)}
-                      className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors font-medium">
-                      수정
-                    </button>
-                    <button onClick={() => confirm('삭제할까요?') && deleteMut.mutate(acc.id)}
-                      className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors font-medium">
-                      삭제
-                    </button>
-                  </div>
-                )}
+                <div className="flex gap-2">
+                  <button onClick={() => openEdit(acc)}
+                    className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                    수정
+                  </button>
+                  <button onClick={() => confirm('삭제할까요?') && deleteMut.mutate(acc.id)}
+                    className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 px-2.5 py-1 rounded-lg transition-colors font-medium">
+                    삭제
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs text-slate-500 mb-4 bg-slate-50 rounded-xl p-3">

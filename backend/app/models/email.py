@@ -18,6 +18,7 @@ class Email(Base):
     replied_at: Mapped[DateTime] = mapped_column(DateTime, nullable=True)
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"), nullable=True)
     assigned_to_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     added_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     project = relationship("Project", back_populates="emails")

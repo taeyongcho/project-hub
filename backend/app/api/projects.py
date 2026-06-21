@@ -7,7 +7,8 @@ from app.core.security import get_current_user
 from app.services.project import (get_all_projects, get_project, create_project,
                                    update_project, delete_project,
                                    create_milestone, update_milestone, delete_milestone,
-                                   get_project_stats)
+                                   get_project_stats, get_project_members,
+                                   add_project_member, remove_project_member)
 
 router = APIRouter(prefix="/projects", tags=["프로젝트"])
 
@@ -18,6 +19,7 @@ class ProjectCreate(BaseModel):
     color: str = "#3b82f6"
     start_date: date | None = None
     end_date: date | None = None
+    member_ids: list[int] = []
 
 
 class ProjectUpdate(BaseModel):
@@ -44,7 +46,9 @@ async def list_projects(db: AsyncSession = Depends(get_db), _=Depends(get_curren
 @router.post("")
 async def add_project(body: ProjectCreate, db: AsyncSession = Depends(get_db),
                       current_user=Depends(get_current_user)):
-    project = await create_project(db, body.model_dump(), current_user.id)
+    data = body.model_dump()
+    member_ids = data.pop("member_ids", [])
+    project = await create_project(db, data, current_user.id, member_ids)
     return project
 
 
@@ -72,6 +76,25 @@ async def remove_project(project_id: int, db: AsyncSession = Depends(get_db), _=
 @router.get("/{project_id}/stats")
 async def project_stats(project_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     return await get_project_stats(db, project_id)
+
+
+@router.get("/{project_id}/members")
+async def list_members(project_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    return await get_project_members(db, project_id)
+
+
+@router.post("/{project_id}/members")
+async def add_member(project_id: int, body: dict, db: AsyncSession = Depends(get_db),
+                     _=Depends(get_current_user)):
+    await add_project_member(db, project_id, body["user_id"], body.get("role", "member"))
+    return await get_project_members(db, project_id)
+
+
+@router.delete("/{project_id}/members/{user_id}")
+async def remove_member(project_id: int, user_id: int, db: AsyncSession = Depends(get_db),
+                        _=Depends(get_current_user)):
+    await remove_project_member(db, project_id, user_id)
+    return await get_project_members(db, project_id)
 
 
 @router.post("/{project_id}/milestones")

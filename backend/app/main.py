@@ -3,13 +3,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.core.config import settings
-from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # 기존 테이블에 새 컬럼 추가 (idempotent)
+        from sqlalchemy import text
+        await conn.execute(text(
+            "ALTER TABLE emails ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_emails_owner_id ON emails(owner_id)"
+        ))
+        # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
     yield
 
@@ -39,6 +48,9 @@ app.include_router(emails.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(work_logs.router, prefix="/api")
 app.include_router(email_accounts.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
+app.include_router(search.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
 
 
 @app.get("/api/health")

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useOutletContext } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 import dayjs from 'dayjs'
@@ -21,6 +21,7 @@ const PRIORITY_BORDER = {
 export default function ProjectDetail() {
   const { id } = useParams()
   const qc = useQueryClient()
+  const { onSelectTask } = useOutletContext()
   const [tab, setTab] = useState('kanban')
   const [showTask, setShowTask] = useState(false)
   const [taskForm, setTaskForm] = useState({ title: '', priority: 'normal', due_date: '', assigned_to_id: '' })
@@ -70,6 +71,23 @@ export default function ProjectDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] })
   })
 
+  const { data: members = [] } = useQuery({
+    queryKey: ['project-members', id],
+    queryFn: () => api.get(`/projects/${id}/members`).then(r => r.data)
+  })
+
+  const addMemberMut = useMutation({
+    mutationFn: user_id => api.post(`/projects/${id}/members`, { user_id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['project-members', id] })
+  })
+
+  const removeMemberMut = useMutation({
+    mutationFn: user_id => api.delete(`/projects/${id}/members/${user_id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['project-members', id] })
+  })
+
+  const memberUserIds = new Set(members.map(m => m.user_id))
+
   if (!project) return <div className="p-6 text-slate-400">로딩 중...</div>
 
   const tasksByStatus = KANBAN_COLS.reduce((acc, col) => {
@@ -108,7 +126,7 @@ export default function ProjectDetail() {
 
       {/* 탭 */}
       <div className="flex gap-1 mb-4 border-b border-slate-200 pb-0">
-        {[['kanban','칸반 보드'],['milestones','마일스톤'],['list','목록']].map(([v, l]) => (
+        {[['kanban','칸반 보드'],['milestones','마일스톤'],['list','목록'],['members',`멤버 ${members.length}`]].map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               tab === v
@@ -176,7 +194,8 @@ export default function ProjectDetail() {
                 {tasksByStatus[col.key]?.map(t => (
                   <TaskCard key={t.id} task={t} users={users}
                     onMove={status => statusMut.mutate({ taskId: t.id, status })}
-                    cols={KANBAN_COLS} />
+                    cols={KANBAN_COLS}
+                    onClick={() => onSelectTask(t.id)} />
                 ))}
               </div>
             </div>
@@ -235,6 +254,75 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {/* 멤버 */}
+      {tab === 'members' && (
+        <div className="max-w-xl space-y-4">
+          {/* 현재 멤버 */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100">
+              <h3 className="text-sm font-semibold text-slate-800">프로젝트 멤버 ({members.length})</h3>
+            </div>
+            {members.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-slate-400">멤버가 없습니다.</div>
+            ) : (
+              <div>
+                {members.map(m => (
+                  <div key={m.user_id} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50 last:border-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700 flex-shrink-0">
+                      {m.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-800">{m.name}</div>
+                      <div className="text-xs text-slate-400">{m.email}</div>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      m.role === 'owner'
+                        ? 'bg-violet-100 text-violet-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {m.role === 'owner' ? '소유자' : '멤버'}
+                    </span>
+                    {m.role !== 'owner' && (
+                      <button
+                        onClick={() => removeMemberMut.mutate(m.user_id)}
+                        className="text-xs text-slate-300 hover:text-red-400 transition-colors ml-1"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 멤버 추가 */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100">
+              <h3 className="text-sm font-semibold text-slate-800">멤버 추가</h3>
+            </div>
+            <div className="p-4">
+              <div className="flex flex-wrap gap-2">
+                {users.filter(u => u.is_active && !memberUserIds.has(u.id)).map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => addMemberMut.mutate(u.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-600 hover:text-blue-700 rounded-xl text-sm font-medium transition-all"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold">
+                      {u.name[0]}
+                    </span>
+                    {u.name}
+                    <span className="text-slate-300 hover:text-blue-400">+</span>
+                  </button>
+                ))}
+                {users.filter(u => u.is_active && !memberUserIds.has(u.id)).length === 0 && (
+                  <p className="text-sm text-slate-400">추가할 수 있는 사용자가 없습니다.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 목록 */}
       {tab === 'list' && (
         <div className="flex-1 overflow-y-auto">
@@ -252,7 +340,8 @@ export default function ProjectDetail() {
               {tasks.map(t => {
                 const assignee = users.find(u => u.id === t.assigned_to_id)
                 return (
-                  <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                    onClick={() => onSelectTask(t.id)}>
                     <td className="py-2.5 px-3 font-medium text-slate-800">{t.title}</td>
                     <td className="py-2.5 px-3">
                       <select value={t.status}
@@ -281,13 +370,14 @@ export default function ProjectDetail() {
   )
 }
 
-function TaskCard({ task: t, users, onMove, cols }) {
+function TaskCard({ task: t, users, onMove, cols, onClick }) {
   const assignee = users.find(u => u.id === t.assigned_to_id)
   const isOverdue = t.due_date && t.status !== 'done' && dayjs(t.due_date).isBefore(dayjs())
   const idx = cols.findIndex(c => c.key === t.status)
 
   return (
-    <div className={`bg-white rounded-xl p-3 border-l-2 border border-slate-200 shadow-card ${PRIORITY_BORDER[t.priority] || 'border-l-slate-200'}`}>
+    <div onClick={onClick}
+      className={`bg-white rounded-xl p-3 border-l-2 border border-slate-200 shadow-card cursor-pointer hover:shadow-md transition-all ${PRIORITY_BORDER[t.priority] || 'border-l-slate-200'}`}>
       <p className="text-sm text-slate-800 font-medium mb-2 leading-snug">{t.title}</p>
       <div className="flex items-center justify-between">
         {assignee && <span className="text-xs text-slate-400">{assignee.name}</span>}
@@ -297,7 +387,7 @@ function TaskCard({ task: t, users, onMove, cols }) {
           </span>
         )}
       </div>
-      <div className="flex gap-1 mt-2">
+      <div className="flex gap-1 mt-2" onClick={e => e.stopPropagation()}>
         {idx > 0 && (
           <button onClick={() => onMove(cols[idx - 1].key)}
             className="text-[10px] text-slate-400 hover:text-slate-700 border border-slate-200 hover:border-slate-400 hover:bg-slate-50 px-1.5 py-0.5 rounded-lg transition-colors">

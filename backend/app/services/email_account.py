@@ -32,8 +32,10 @@ def _decode_header(val: str) -> str:
     return result
 
 
-async def list_accounts(db: AsyncSession):
-    result = await db.execute(select(EmailAccount).order_by(EmailAccount.id))
+async def list_accounts(db: AsyncSession, owner_id: int):
+    result = await db.execute(
+        select(EmailAccount).where(EmailAccount.owner_id == owner_id).order_by(EmailAccount.id)
+    )
     accounts = result.scalars().all()
     return [_a(a) for a in accounts]
 
@@ -133,6 +135,7 @@ async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
                     date_str=date_str,
                     date_ts=date_ts,
                     status="unread",
+                    owner_id=account.owner_id,
                 )
                 db.add(em)
                 imported += 1

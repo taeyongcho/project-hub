@@ -1,7 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from app.models.project import Project, Milestone
 from app.models.task import Task
+from app.models.project_member import ProjectMember
+from app.models.user import User
 
 
 async def get_all_projects(db: AsyncSession):
@@ -24,9 +26,16 @@ async def get_project(db: AsyncSession, project_id: int):
     return {**_p(p), "milestones": [_ms(m) for m in milestones]}
 
 
-async def create_project(db: AsyncSession, data: dict, owner_id: int):
+async def create_project(db: AsyncSession, data: dict, owner_id: int, member_ids: list[int] = None):
     project = Project(**data, owner_id=owner_id)
     db.add(project)
+    await db.flush()
+    # 소유자를 owner 역할로 자동 추가
+    db.add(ProjectMember(project_id=project.id, user_id=owner_id, role="owner"))
+    # 추가 멤버
+    for uid in (member_ids or []):
+        if uid != owner_id:
+            db.add(ProjectMember(project_id=project.id, user_id=uid, role="member"))
     await db.commit()
     await db.refresh(project)
     return _p(project)
@@ -99,3 +108,43 @@ def _ms(m: Milestone) -> dict:
     return {"id": m.id, "project_id": m.project_id, "title": m.title,
             "due_date": str(m.due_date) if m.due_date else None,
             "is_done": m.is_done, "order": m.order}
+
+
+async def get_project_members(db: AsyncSession, project_id: int):
+    rows = await db.execute(
+        select(ProjectMember, User)
+        .join(User, ProjectMember.user_id == User.id)
+        .where(ProjectMember.project_id == project_id)
+        .order_by(ProjectMember.joined_at)
+    )
+    return [
+        {"user_id": u.id, "name": u.name, "email": u.email,
+         "role": pm.role, "is_active": u.is_active}
+        for pm, u in rows.all()
+    ]
+
+
+async def add_project_member(db: AsyncSession, project_id: int, user_id: int, role: str = "member"):
+    existing = await db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user_id
+        )
+    )
+    if existing:
+        return None
+    pm = ProjectMember(project_id=project_id, user_id=user_id, role=role)
+    db.add(pm)
+    await db.commit()
+    return pm
+
+
+async def remove_project_member(db: AsyncSession, project_id: int, user_id: int):
+    await db.execute(
+        delete(ProjectMember).where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user_id,
+            ProjectMember.role != "owner"
+        )
+    )
+    await db.commit()

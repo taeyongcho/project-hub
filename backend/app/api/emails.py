@@ -28,9 +28,9 @@ async def list_emails(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
-    return await get_emails(db, status=status, project_id=project_id,
+    return await get_emails(db, owner_id=current_user.id, status=status, project_id=project_id,
                             assigned_to_id=assigned_to_id, q=q, skip=skip, limit=limit)
 
 
@@ -55,7 +55,7 @@ async def set_status(email_id: int, body: StatusUpdate, db: AsyncSession = Depen
 async def import_eml(file: UploadFile = File(...), db: AsyncSession = Depends(get_db),
                      current_user=Depends(get_current_user)):
     content = await file.read()
-    return await import_eml_file(db, content, file.filename)
+    return await import_eml_file(db, content, file.filename, owner_id=current_user.id)
 
 
 @router.get("/{email_id}/memos")

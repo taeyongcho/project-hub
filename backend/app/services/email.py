@@ -27,7 +27,7 @@ def _decode_hdr(val):
     return "".join(out).strip()
 
 
-async def import_eml_file(db: AsyncSession, content: bytes, filename: str):
+async def import_eml_file(db: AsyncSession, content: bytes, filename: str, owner_id: int = None):
     msg = email_lib.message_from_bytes(content, policy=email_lib.policy.compat32)
     subject = _decode_hdr(msg.get("Subject", "")) or filename
     from_ = _decode_hdr(msg.get("From", ""))
@@ -53,16 +53,16 @@ async def import_eml_file(db: AsyncSession, content: bytes, filename: str):
         return {"status": "skipped", "path": path}
 
     em = Email(path=path, subject=subject, from_=from_, to_=to_, cc_=cc_,
-               date_str=date_str, date_ts=date_ts)
+               date_str=date_str, date_ts=date_ts, owner_id=owner_id)
     db.add(em)
     await db.commit()
     await db.refresh(em)
     return _e(em)
 
 
-async def get_emails(db: AsyncSession, status=None, project_id=None,
+async def get_emails(db: AsyncSession, owner_id: int, status=None, project_id=None,
                      assigned_to_id=None, q=None, skip=0, limit=100):
-    query = select(Email)
+    query = select(Email).where(Email.owner_id == owner_id)
     if status:
         query = query.where(Email.status == status)
     if project_id:
