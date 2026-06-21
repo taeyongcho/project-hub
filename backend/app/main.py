@@ -26,7 +26,7 @@ async def _create_admin():
                               hash_password(settings.first_admin_password), "admin")
 
 
-app = FastAPI(title="Project Hub API", lifespan=lifespan)
+app = FastAPI(title="Project Hub API", lifespan=lifespan, redirect_slashes=False)
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
