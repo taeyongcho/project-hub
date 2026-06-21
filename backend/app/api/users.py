@@ -27,14 +27,14 @@ async def me(current_user=Depends(get_current_user)):
             "email": current_user.email, "role": current_user.role}
 
 
-@router.get("/")
+@router.get("")
 async def list_users(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     users = await get_all_users(db)
     return [{"id": u.id, "name": u.name, "email": u.email,
              "role": u.role, "is_active": u.is_active} for u in users]
 
 
-@router.post("/")
+@router.post("")
 async def invite_user(body: UserCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     if await get_user_by_email(db, body.email):
         raise HTTPException(status_code=400, detail="이미 존재하는 이메일입니다.")

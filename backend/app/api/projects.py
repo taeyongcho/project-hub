@@ -35,13 +35,13 @@ class MilestoneCreate(BaseModel):
     order: int = 0
 
 
-@router.get("/")
+@router.get("")
 async def list_projects(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     projects = await get_all_projects(db)
     return projects
 
 
-@router.post("/")
+@router.post("")
 async def add_project(body: ProjectCreate, db: AsyncSession = Depends(get_db),
                       current_user=Depends(get_current_user)):
     project = await create_project(db, body.model_dump(), current_user.id)

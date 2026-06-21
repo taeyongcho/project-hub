@@ -19,7 +19,7 @@ class MemoCreate(BaseModel):
     content: str
 
 
-@router.get("/")
+@router.get("")
 async def list_emails(
     status: str | None = Query(None),
     project_id: int | None = Query(None),

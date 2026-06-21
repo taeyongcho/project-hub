@@ -12,7 +12,7 @@ class ReportUpdate(BaseModel):
     content: dict
 
 
-@router.get("/")
+@router.get("")
 async def list_all(type: str | None = Query(None), db: AsyncSession = Depends(get_db),
                    _=Depends(get_current_user)):
     return await list_reports(db, type)

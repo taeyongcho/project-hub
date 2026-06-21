@@ -16,7 +16,7 @@ class WorkLogUpsert(BaseModel):
     next_plan: str = ""
 
 
-@router.get("/")
+@router.get("")
 async def list_logs(
     user_id: int | None = Query(None),
     from_date: date | None = Query(None),
@@ -28,7 +28,7 @@ async def list_logs(
     return await get_logs(db, target_user_id, from_date, to_date)
 
 
-@router.post("/")
+@router.post("")
 async def save_log(body: WorkLogUpsert, db: AsyncSession = Depends(get_db),
                    current_user=Depends(get_current_user)):
     return await upsert_log(db, current_user.id, body.model_dump())

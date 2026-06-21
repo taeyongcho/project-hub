@@ -35,7 +35,7 @@ class CommentCreate(BaseModel):
     content: str
 
 
-@router.get("/")
+@router.get("")
 async def list_tasks(
     project_id: int | None = Query(None),
     assigned_to_id: int | None = Query(None),
@@ -46,7 +46,7 @@ async def list_tasks(
     return await get_tasks(db, project_id=project_id, assigned_to_id=assigned_to_id, status=status)
 
 
-@router.post("/")
+@router.post("")
 async def add_task(body: TaskCreate, db: AsyncSession = Depends(get_db),
                    current_user=Depends(get_current_user)):
     return await create_task(db, body.model_dump(), current_user.id)
