@@ -65,7 +65,7 @@ export default function Emails() {
   return (
     <div className="flex h-full">
       {/* 목록 패널 */}
-      <div className="w-72 flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
+      <div className="w-80 flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
         <div className="p-3 border-b border-slate-100 space-y-2">
           <div className="flex items-center gap-2">
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
@@ -115,7 +115,7 @@ export default function Emails() {
 
       {/* 상세 패널 */}
       {selected ? (
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 max-w-3xl">
           <h2 className="text-lg font-bold text-slate-900 mb-3">{detail?.subject || selected.subject}</h2>
           <div className="text-sm text-slate-500 space-y-1 mb-5 pb-5 border-b border-slate-100">
             <div><span className="text-slate-400 w-16 inline-block">보낸 이</span>{detail?.from_ || selected.from_}</div>
