@@ -24,7 +24,7 @@ export default function ProjectDetail() {
   const { onSelectTask } = useOutletContext()
   const [tab, setTab] = useState('kanban')
   const [showTask, setShowTask] = useState(false)
-  const [taskForm, setTaskForm] = useState({ title: '', priority: 'normal', due_date: '', assigned_to_id: '' })
+  const [taskForm, setTaskForm] = useState({ title: '', priority: 'normal', due_date: '', assigned_to_id: '', milestone_id: '' })
   const [showMs, setShowMs] = useState(false)
   const [msForm, setMsForm] = useState({ title: '', due_date: '' })
 
@@ -49,7 +49,7 @@ export default function ProjectDetail() {
       qc.invalidateQueries({ queryKey: ['tasks', id] })
       qc.invalidateQueries({ queryKey: ['project', id] })
       setShowTask(false)
-      setTaskForm({ title: '', priority: 'normal', due_date: '', assigned_to_id: '' })
+      setTaskForm({ title: '', priority: 'normal', due_date: '', assigned_to_id: '', milestone_id: '' })
     }
   })
 
@@ -163,12 +163,19 @@ export default function ProjectDetail() {
           <div className="flex items-center gap-3">
             <input type="date" value={taskForm.due_date} onChange={e => setTaskForm(p => ({ ...p, due_date: e.target.value }))}
               className={inputCls} />
+            <select value={taskForm.milestone_id} onChange={e => setTaskForm(p => ({ ...p, milestone_id: e.target.value }))} className={inputCls}>
+              <option value="">마일스톤 (선택)</option>
+              {project.milestones?.filter(m => !m.is_done).map(m => (
+                <option key={m.id} value={m.id}>{m.title}{m.due_date ? ` (~${dayjs(m.due_date).format('MM/DD')})` : ''}</option>
+              ))}
+            </select>
             <div className="ml-auto flex gap-2">
               <button onClick={() => setShowTask(false)}
                 className="text-sm text-slate-400 hover:text-slate-700 px-3 py-2 transition-colors">취소</button>
               <button onClick={() => taskForm.title && taskMut.mutate({
                 ...taskForm,
                 assigned_to_id: taskForm.assigned_to_id ? parseInt(taskForm.assigned_to_id) : null,
+                milestone_id: taskForm.milestone_id ? parseInt(taskForm.milestone_id) : null,
                 due_date: taskForm.due_date || null
               })}
                 className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
@@ -228,28 +235,129 @@ export default function ProjectDetail() {
                 className="text-sm text-slate-400 hover:text-slate-700 px-2 py-2 transition-colors">취소</button>
             </div>
           )}
-          <div className="space-y-2">
-            {project.milestones?.map(ms => (
-              <div key={ms.id} className={`flex items-center gap-3 p-4 rounded-2xl border transition-colors ${
-                ms.is_done
-                  ? 'bg-emerald-50 border-emerald-200'
-                  : 'bg-white border-slate-200 shadow-card'
-              }`}>
-                <input type="checkbox" checked={ms.is_done}
-                  onChange={e => msDoneMut.mutate({ msId: ms.id, is_done: e.target.checked })}
-                  className="w-4 h-4 accent-slate-900 rounded" />
-                <span className={`flex-1 text-sm font-medium ${ms.is_done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                  {ms.title}
-                </span>
-                {ms.due_date && (
-                  <span className={`text-xs font-medium ${
-                    !ms.is_done && dayjs(ms.due_date).isBefore(dayjs()) ? 'text-red-500' : 'text-slate-400'
-                  }`}>
-                    {dayjs(ms.due_date).format('YYYY-MM-DD')}
-                  </span>
-                )}
+
+          <div className="space-y-4">
+            {project.milestones?.map(ms => {
+              const msTasks = tasks.filter(t => t.milestone_id === ms.id)
+              const msUnlinked = tasks.filter(t => !t.milestone_id)
+              const doneCnt = msTasks.filter(t => t.status === 'done').length
+              const isOverdue = !ms.is_done && ms.due_date && dayjs(ms.due_date).isBefore(dayjs())
+
+              return (
+                <div key={ms.id} className={`rounded-2xl border overflow-hidden ${
+                  ms.is_done ? 'border-emerald-200' : 'border-slate-200'
+                }`}>
+                  {/* 마일스톤 헤더 */}
+                  <div className={`flex items-center gap-3 px-4 py-3 ${ms.is_done ? 'bg-emerald-50' : 'bg-white'}`}>
+                    <input type="checkbox" checked={ms.is_done}
+                      onChange={e => msDoneMut.mutate({ msId: ms.id, is_done: e.target.checked })}
+                      className="w-4 h-4 accent-slate-900 rounded flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-semibold ${ms.is_done ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                          {ms.title}
+                        </span>
+                        {msTasks.length > 0 && (
+                          <span className="text-xs text-slate-400 font-medium">
+                            {doneCnt}/{msTasks.length} 완료
+                          </span>
+                        )}
+                      </div>
+                      {msTasks.length > 0 && (
+                        <div className="mt-1.5 w-48 bg-slate-200 rounded-full h-1">
+                          <div className="h-1 rounded-full bg-emerald-500 transition-all"
+                            style={{ width: `${msTasks.length ? Math.round(doneCnt / msTasks.length * 100) : 0}%` }} />
+                        </div>
+                      )}
+                    </div>
+                    {ms.due_date && (
+                      <span className={`text-xs font-semibold px-2 py-1 rounded-lg flex-shrink-0 ${
+                        ms.is_done ? 'text-emerald-600 bg-emerald-100' :
+                        isOverdue ? 'text-red-600 bg-red-50' : 'text-slate-500 bg-slate-100'
+                      }`}>
+                        {isOverdue ? '⚠ ' : ''}{dayjs(ms.due_date).format('MM/DD')}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 마일스톤 태스크 목록 */}
+                  {msTasks.length > 0 && (
+                    <div className="border-t border-slate-100">
+                      {msTasks.map(t => {
+                        const assignee = users.find(u => u.id === t.assigned_to_id)
+                        return (
+                          <div key={t.id}
+                            onClick={() => onSelectTask(t.id)}
+                            className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer group">
+                            <input type="checkbox" checked={t.status === 'done'}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => { e.stopPropagation(); statusMut.mutate({ taskId: t.id, status: e.target.checked ? 'done' : 'todo' }) }}
+                              className="w-3.5 h-3.5 accent-slate-900 rounded flex-shrink-0" />
+                            <span className={`flex-1 text-sm ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-700 group-hover:text-blue-600'} transition-colors`}>
+                              {t.title}
+                            </span>
+                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                              {assignee && <span className="font-medium">{assignee.name}</span>}
+                              <PriorityBadge priority={t.priority} />
+                              {t.due_date && (
+                                <span className={t.status !== 'done' && dayjs(t.due_date).isBefore(dayjs()) ? 'text-red-500 font-medium' : ''}>
+                                  {dayjs(t.due_date).format('MM/DD')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {msTasks.length === 0 && (
+                    <div className="px-4 py-3 text-xs text-slate-400 border-t border-slate-50">
+                      태스크 없음 — 태스크 추가 시 이 마일스톤을 선택하세요
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* 마일스톤 미배정 태스크 */}
+            {tasks.filter(t => !t.milestone_id).length > 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 flex items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-400">미배정 태스크</span>
+                  <span className="text-xs text-slate-400">{tasks.filter(t => !t.milestone_id).length}개</span>
+                </div>
+                <div>
+                  {tasks.filter(t => !t.milestone_id).map(t => {
+                    const assignee = users.find(u => u.id === t.assigned_to_id)
+                    return (
+                      <div key={t.id}
+                        onClick={() => onSelectTask(t.id)}
+                        className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer group">
+                        <input type="checkbox" checked={t.status === 'done'}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => { e.stopPropagation(); statusMut.mutate({ taskId: t.id, status: e.target.checked ? 'done' : 'todo' }) }}
+                          className="w-3.5 h-3.5 accent-slate-900 rounded flex-shrink-0" />
+                        <span className={`flex-1 text-sm ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-500 group-hover:text-slate-700'} transition-colors`}>
+                          {t.title}
+                        </span>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          {assignee && <span>{assignee.name}</span>}
+                          {t.due_date && <span>{dayjs(t.due_date).format('MM/DD')}</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            ))}
+            )}
+
+            {project.milestones?.length === 0 && (
+              <div className="text-center py-12 text-slate-400">
+                <div className="text-3xl mb-2">◎</div>
+                <div className="text-sm font-medium">마일스톤이 없습니다</div>
+                <div className="text-xs mt-1">+ 마일스톤 추가 버튼으로 일정을 만드세요</div>
+              </div>
+            )}
           </div>
         </div>
       )}

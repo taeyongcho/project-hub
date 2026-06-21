@@ -49,6 +49,12 @@ export default function TaskDetailPanel({ taskId, onClose }) {
     queryFn: () => api.get('/projects').then(r => r.data),
   })
 
+  const { data: projectDetail } = useQuery({
+    queryKey: ['project', task?.project_id],
+    queryFn: () => api.get(`/projects/${task.project_id}`).then(r => r.data),
+    enabled: !!task?.project_id,
+  })
+
   useEffect(() => {
     if (task) { setTitle(task.title); setDesc(task.description || '') }
   }, [task])
@@ -205,6 +211,25 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                   </select>
                 </div>
               </div>
+
+              {/* 마일스톤 */}
+              {projectDetail?.milestones?.length > 0 && (
+                <div className="col-span-2">
+                  <label className="text-xs font-medium text-slate-400 mb-1 block">마일스톤</label>
+                  <select
+                    value={task?.milestone_id || ''}
+                    onChange={e => update({ milestone_id: e.target.value ? parseInt(e.target.value) : null })}
+                    className={inputCls}
+                  >
+                    <option value="">마일스톤 없음</option>
+                    {projectDetail.milestones.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.is_done ? '✓ ' : ''}{m.title}{m.due_date ? ` (~${m.due_date.slice(5)})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* 프로젝트 */}
               {project && (
