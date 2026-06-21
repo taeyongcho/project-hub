@@ -113,8 +113,12 @@ export default function ProjectDetail() {
 
   if (!project) return <div className="p-6 text-slate-400">로딩 중...</div>
 
+  // 방향 B: 자식이 있는 WBS 상위 항목은 칸반/목록에서 제외 (그룹핑 노드)
+  const parentIds = new Set(tasks.filter(t => t.parent_id).map(t => t.parent_id))
+  const executableTasks = tasks.filter(t => !parentIds.has(t.id))
+
   const tasksByStatus = KANBAN_COLS.reduce((acc, col) => {
-    acc[col.key] = tasks.filter(t => t.status === col.key)
+    acc[col.key] = executableTasks.filter(t => t.status === col.key)
     return acc
   }, {})
 
@@ -559,7 +563,7 @@ export default function ProjectDetail() {
               </tr>
             </thead>
             <tbody>
-              {tasks.map(t => {
+              {executableTasks.map(t => {
                 const assignee = users.find(u => u.id === t.assigned_to_id)
                 return (
                   <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"

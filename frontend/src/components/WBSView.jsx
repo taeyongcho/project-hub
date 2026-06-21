@@ -241,13 +241,24 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
                           onBlur={() => renameMut.mutate({ id: row.id, title: editTitle })}
                           onKeyDown={e => { if (e.key === 'Enter') renameMut.mutate({ id: row.id, title: editTitle }); if (e.key === 'Escape') setEditingId(null) }}
                           className="flex-1 border-b border-blue-500 outline-none text-xs text-slate-900 bg-transparent" />
+                      ) : childCnt > 0 ? (
+                        // 상위 그룹 항목 — 클릭해도 상세 패널 안 열림
+                        <span
+                          onDoubleClick={() => { setEditingId(row.id); setEditTitle(row.title) }}
+                          className="flex-1 text-xs font-bold text-slate-700 truncate cursor-default select-none"
+                          title="더블클릭: 이름 수정"
+                        >
+                          {row.title}
+                        </span>
                       ) : (
+                        // 실행 태스크 — 클릭 시 상세 패널
                         <span
                           onClick={() => onSelectTask(row.id)}
                           onDoubleClick={() => { setEditingId(row.id); setEditTitle(row.title) }}
                           className={`flex-1 text-xs cursor-pointer hover:text-blue-600 truncate font-medium transition-colors ${
                             row.status === 'done' ? 'line-through text-slate-400' : isOverdue ? 'text-red-500' : 'text-slate-800'
                           }`}
+                          title="클릭: 상세보기 · 더블클릭: 이름 수정"
                         >
                           {row.title}
                         </span>
@@ -353,21 +364,27 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
                     )}
 
                     {/* 간트 바 */}
-                    {bar && (
-                      <div
-                        className="absolute top-1/2 -translate-y-1/2 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center px-1.5 overflow-hidden"
-                        style={{
-                          left: bar.left + 2,
-                          width: bar.width - 4,
-                          height: 20,
-                          background: isOverdue ? '#ef4444' : color,
-                        }}
-                        onClick={() => onSelectTask(row.id)}
-                        title={`${row.title} (${row.start_date || '?'} ~ ${row.due_date || '?'})`}
-                      >
-                        <span className="text-white text-[10px] font-medium truncate">{row.title}</span>
-                      </div>
-                    )}
+                    {bar && (() => {
+                      const isGroup = tasks.some(t => t.parent_id === row.id)
+                      return isGroup ? (
+                        // 상위 그룹: 얇은 진한 바
+                        <div
+                          className="absolute rounded-sm"
+                          style={{ left: bar.left + 2, width: bar.width - 4, height: 8, top: '50%', transform: 'translateY(-50%)', background: '#475569' }}
+                          title={`${row.title} (${row.start_date || '?'} ~ ${row.due_date || '?'})`}
+                        />
+                      ) : (
+                        // 실행 태스크: 일반 바
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center px-1.5 overflow-hidden"
+                          style={{ left: bar.left + 2, width: bar.width - 4, height: 20, background: isOverdue ? '#ef4444' : color }}
+                          onClick={() => onSelectTask(row.id)}
+                          title={`${row.title} (${row.start_date || '?'} ~ ${row.due_date || '?'})`}
+                        >
+                          <span className="text-white text-[10px] font-medium truncate">{row.title}</span>
+                        </div>
+                      )
+                    })()}
 
                     {/* 날짜 없는 항목: 다이아몬드 마커 */}
                     {!bar && (
