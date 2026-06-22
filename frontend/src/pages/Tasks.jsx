@@ -83,7 +83,7 @@ export default function Tasks() {
       </div>
 
       <div className="flex gap-2 mb-5">
-        {[['mine','내 할일'],['all','전체'],['overdue','기한 초과']].map(([v, l]) => (
+        {[['mine','내 할일'],['all','전체 (진행중)'],['overdue','기한 초과']].map(([v, l]) => (
           <button key={v} onClick={() => setFilter(v)}
             className={`text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${
               filter === v ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'

@@ -51,16 +51,23 @@ async def _collect_monthly_data(db: AsyncSession) -> dict:
     users_result = await db.execute(select(User).where(User.is_active == True))
     users = users_result.scalars().all()
 
+    done_result = await db.execute(
+        select(Task.assigned_to_id, func.count(Task.id)).where(
+            Task.status == "done", func.date(Task.done_at) >= month_start
+        ).group_by(Task.assigned_to_id)
+    )
+    done_stats = {row[0]: row[1] for row in done_result}
+
+    in_progress_result = await db.execute(
+        select(Task.assigned_to_id, func.count(Task.id)).where(
+            Task.status.in_(["todo", "in_progress", "review"])
+        ).group_by(Task.assigned_to_id)
+    )
+    in_progress_stats = {row[0]: row[1] for row in in_progress_result}
+
     user_stats = []
     for u in users:
-        done = await db.scalar(select(func.count(Task.id)).where(
-            Task.assigned_to_id == u.id, Task.status == "done",
-            func.date(Task.done_at) >= month_start
-        ))
-        in_progress = await db.scalar(select(func.count(Task.id)).where(
-            Task.assigned_to_id == u.id, Task.status.in_(["todo", "in_progress", "review"])
-        ))
-        user_stats.append({"name": u.name, "done": done or 0, "in_progress": in_progress or 0})
+        user_stats.append({"name": u.name, "done": done_stats.get(u.id, 0), "in_progress": in_progress_stats.get(u.id, 0)})
 
     total_done = await db.scalar(select(func.count(Task.id)).where(
         Task.status == "done", func.date(Task.done_at) >= month_start

@@ -46,6 +46,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL}
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
     depends_on:
       db:
         condition: service_healthy
