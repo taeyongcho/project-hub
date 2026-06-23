@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.wsgi import WSGIMiddleware
+from socketio import ASGIApp
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.config import settings
-from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications
+from app.core.socketio import sio
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards
 
 
 @asynccontextmanager
@@ -94,8 +97,13 @@ app.include_router(email_accounts.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(whiteboards.router, prefix="/api")
 
 
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# Socket.io ASGI 앱으로 래핑
+app = ASGIApp(sio, app)

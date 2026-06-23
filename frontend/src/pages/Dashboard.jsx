@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate, useOutletContext } from 'react-router-dom'
+import { toast } from 'sonner'
+import { PenTool } from 'lucide-react'
 import api from '../api/client'
 import useAuth from '../store/auth'
 import dayjs from 'dayjs'
@@ -92,6 +94,15 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { onSelectTask } = useOutletContext()
 
+  const createWhiteboardMut = useMutation({
+    mutationFn: () => api.post('/whiteboards', { name: `${user?.name}의 화이트보드` }),
+    onSuccess: (data) => {
+      toast.success('화이트보드가 생성되었습니다')
+      navigate(`/whiteboard/${data.id}`)
+    },
+    onError: () => toast.error('화이트보드 생성 실패')
+  })
+
   const { data: myTasks } = useQuery({
     queryKey: ['my-tasks'],
     queryFn: () => api.get(`/tasks?assigned_to_id=${user?.id}&status=in_progress`).then(r => r.data)
@@ -123,9 +134,19 @@ export default function Dashboard() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* 헤더 */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {user?.name}님 👋</h1>
-        <p className="text-slate-400 text-sm mt-1">{dayjs().format('YYYY년 MM월 DD일 dddd')}</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {user?.name}님 👋</h1>
+          <p className="text-slate-400 text-sm mt-1">{dayjs().format('YYYY년 MM월 DD일 dddd')}</p>
+        </div>
+        <button
+          onClick={() => createWhiteboardMut.mutate()}
+          disabled={createWhiteboardMut.isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-medium transition-colors"
+        >
+          <PenTool size={18} />
+          화이트보드
+        </button>
       </div>
 
       {/* 상단 통계 4개 */}
