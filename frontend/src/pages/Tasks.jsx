@@ -4,6 +4,7 @@ import { useOutletContext } from 'react-router-dom'
 import { toast } from 'sonner'
 import api from '../api/client'
 import useAuth from '../store/auth'
+import { SkeletonTaskCard } from '../components/Skeleton'
 import dayjs from 'dayjs'
 
 const PRIORITY_MAP = { urgent: '긴급', high: '높음', normal: '보통', low: '낮음' }
@@ -27,7 +28,7 @@ export default function Tasks() {
   const params = filter === 'mine' ? `?assigned_to_id=${user?.id}` :
     filter === 'overdue' ? '?status=todo' : '?status=in_progress'
 
-  const { data: tasks = [] } = useQuery({
+  const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['all-tasks', filter],
     queryFn: () => api.get(`/tasks${params}`).then(r => r.data)
   })
@@ -143,19 +144,25 @@ export default function Tasks() {
         </div>
       )}
 
-      {['todo','in_progress','review','done'].map(status => {
-        const group = grouped[status] || []
-        if (group.length === 0) return null
-        return (
-          <div key={status} className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[status]}`}>
-                {STATUS_MAP[status]}
-              </span>
-              <span className="text-xs text-slate-400">{group.length}개</span>
-            </div>
-            <div className="space-y-1.5">
-              {group.map(t => {
+      {isLoading ? (
+        <div className="space-y-4">
+          {Array(4).fill(0).map((_, i) => <SkeletonTaskCard key={i} />)}
+        </div>
+      ) : (
+        <>
+          {['todo','in_progress','review','done'].map(status => {
+            const group = grouped[status] || []
+            if (group.length === 0) return null
+            return (
+              <div key={status} className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_COLORS[status]}`}>
+                    {STATUS_MAP[status]}
+                  </span>
+                  <span className="text-xs text-slate-400">{group.length}개</span>
+                </div>
+                <div className="space-y-1.5">
+                  {group.map(t => {
                 const assignee = users.find(u => u.id === t.assigned_to_id)
                 const project = projects.find(p => p.id === t.project_id)
                 const isOverdue = t.due_date && t.status !== 'done' && dayjs(t.due_date).isBefore(dayjs())
@@ -190,13 +197,15 @@ export default function Tasks() {
                     </div>
                   </div>
                 )
-              })}
-            </div>
-          </div>
-        )
-      })}
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </>
+      )}
 
-      {displayTasks.length === 0 && (
+      {!isLoading && displayTasks.length === 0 && (
         <div className="text-center text-slate-400 py-16">
           <div className="text-4xl mb-3">✓</div>
           {filter === 'overdue' ? '기한 초과된 태스크가 없습니다!' : '태스크가 없습니다'}

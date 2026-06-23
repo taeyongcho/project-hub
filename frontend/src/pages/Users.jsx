@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from '../api/client'
 import useAuth from '../store/auth'
+import { SkeletonUserCard } from '../components/Skeleton'
 
 const ROLE_LABELS = { admin: '관리자', member: '팀원', viewer: '열람자' }
 const ROLE_COLORS = {
@@ -17,7 +18,7 @@ export default function Users() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'member' })
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.get('/users').then(r => r.data)
   })
@@ -121,7 +122,16 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
+            {isLoading ? (
+              Array(5).fill(0).map((_, i) => (
+                <tr key={i} className="border-b border-slate-100">
+                  <td className="py-3 px-4 col-span-4">
+                    <SkeletonUserCard />
+                  </td>
+                </tr>
+              ))
+            ) : (
+              users.map(u => (
               <tr key={u.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2.5">
@@ -164,7 +174,8 @@ export default function Users() {
                   )}
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -12,6 +12,8 @@ import WorkLog from './pages/WorkLog'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
 import EmailSettings from './pages/EmailSettings'
+import NotFound from './pages/NotFound'
+import ServerError from './pages/ServerError'
 
 function Guard({ children }) {
   const { token } = useAuth()
@@ -24,6 +26,7 @@ export default function App() {
       <Toaster position="top-right" expand={false} richColors />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/500" element={<ServerError />} />
         <Route path="/" element={<Guard><Layout /></Guard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -36,6 +39,7 @@ export default function App() {
           <Route path="users" element={<Users />} />
           <Route path="email-settings" element={<EmailSettings />} />
         </Route>
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )

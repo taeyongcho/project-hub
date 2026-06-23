@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search } from 'lucide-react'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut } from 'lucide-react'
 import useAuth from '../store/auth'
+import { useTheme } from '../store/theme'
 import api from '../api/client'
 import SearchModal from './SearchModal'
 import NotificationPanel from './NotificationPanel'
@@ -21,6 +22,7 @@ const MY_NAV = [
 
 export default function Sidebar({ onSelectTask }) {
   const { user, logout } = useAuth()
+  const { isDark, toggle: toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [showSearch, setShowSearch] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
@@ -190,10 +192,18 @@ export default function Sidebar({ onSelectTask }) {
             <span>이메일 계정 설정</span>
           </NavLink>
           <button
-            onClick={() => { logout(); navigate('/login') }}
-            className="w-full text-left text-sm text-slate-400 hover:text-slate-700 px-5 py-2.5 transition-colors"
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-3 mx-2 mb-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-800 hover:bg-slate-100"
           >
-            로그아웃
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            <span>{isDark ? '라이트 모드' : '다크 모드'}</span>
+          </button>
+          <button
+            onClick={() => { logout(); navigate('/login') }}
+            className="w-full flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+          >
+            <LogOut size={18} />
+            <span>로그아웃</span>
           </button>
         </div>
       </aside>
