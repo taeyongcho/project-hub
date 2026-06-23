@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from '../api/client'
 import dayjs from 'dayjs'
+import { SkeletonProjectCard } from '../components/Skeleton'
 
 const COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16']
 
@@ -16,7 +18,7 @@ export default function Projects() {
   const [editProject, setEditProject] = useState(null) // 수정 대상 프로젝트
   const [editForm, setEditForm] = useState({})
 
-  const { data: projects = [] } = useQuery({
+  const { data: projects = [], isLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.get('/projects').then(r => r.data)
   })
@@ -32,12 +34,18 @@ export default function Projects() {
       qc.invalidateQueries({ queryKey: ['projects'] })
       setShowForm(false)
       setForm(EMPTY_FORM)
-    }
+      toast.success('프로젝트가 생성되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '프로젝트 생성 실패')
   })
 
   const archiveMut = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/projects/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('프로젝트가 업데이트되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '업데이트 실패')
   })
 
   const editMut = useMutation({
@@ -45,7 +53,9 @@ export default function Projects() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       setEditProject(null)
-    }
+      toast.success('프로젝트가 수정되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '수정 실패')
   })
 
   const openEdit = (e, p) => {
@@ -217,18 +227,24 @@ export default function Projects() {
       )}
 
       <div className="grid grid-cols-3 gap-4 mb-8">
-        {active.map(p => (
-          <ProjectCard key={p.id} project={p}
-            onClick={() => navigate(`/projects/${p.id}`)}
-            onEdit={e => openEdit(e, p)}
-            onArchive={() => archiveMut.mutate({ id: p.id, status: 'done' })} />
-        ))}
-        {active.length === 0 && (
-          <div className="col-span-3 text-center py-16 text-slate-400">
-            <div className="text-4xl mb-3">◈</div>
-            <div className="font-medium">진행 중인 프로젝트가 없습니다.</div>
-            <div className="text-xs mt-1">+ 새 프로젝트 버튼으로 시작하세요.</div>
-          </div>
+        {isLoading ? (
+          Array(3).fill(0).map((_, i) => <SkeletonProjectCard key={i} />)
+        ) : (
+          <>
+            {active.map(p => (
+              <ProjectCard key={p.id} project={p}
+                onClick={() => navigate(`/projects/${p.id}`)}
+                onEdit={e => openEdit(e, p)}
+                onArchive={() => archiveMut.mutate({ id: p.id, status: 'done' })} />
+            ))}
+            {active.length === 0 && (
+              <div className="col-span-3 text-center py-16 text-slate-400">
+                <div className="text-4xl mb-3">◈</div>
+                <div className="font-medium">진행 중인 프로젝트가 없습니다.</div>
+                <div className="text-xs mt-1">+ 새 프로젝트 버튼으로 시작하세요.</div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

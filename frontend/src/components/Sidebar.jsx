@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search } from 'lucide-react'
 import useAuth from '../store/auth'
 import api from '../api/client'
 import SearchModal from './SearchModal'
 import NotificationPanel from './NotificationPanel'
 
 const TEAM_NAV = [
-  { to: '/dashboard', icon: '▦', label: '대시보드' },
-  { to: '/projects',  icon: '◈', label: '프로젝트' },
-  { to: '/tasks',     icon: '✓', label: '할 일'   },
-  { to: '/reports',   icon: '▤', label: '보고서'  },
+  { to: '/dashboard', icon: LayoutGrid, label: '대시보드' },
+  { to: '/projects',  icon: Folder, label: '프로젝트' },
+  { to: '/tasks',     icon: CheckCircle, label: '할 일'   },
+  { to: '/reports',   icon: BarChart3, label: '보고서'  },
 ]
 
 const MY_NAV = [
-  { to: '/emails',  icon: '✉', label: '내 이메일' },
-  { to: '/worklog', icon: '◷', label: '업무일지'  },
+  { to: '/emails',  icon: Mail, label: '내 이메일' },
+  { to: '/worklog', icon: Clock, label: '업무일지'  },
 ]
 
 export default function Sidebar({ onSelectTask }) {
@@ -76,7 +77,7 @@ export default function Sidebar({ onSelectTask }) {
             onClick={() => setShowSearch(true)}
             className="w-full flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors group"
           >
-            <span className="text-base">⌕</span>
+            <Search size={18} className="text-slate-400" />
             <span className="flex-1 text-left">검색...</span>
             <kbd className="text-[10px] bg-white border border-slate-200 text-slate-400 px-1.5 py-0.5 rounded font-mono hidden group-hover:block">
               Ctrl K
@@ -91,7 +92,7 @@ export default function Sidebar({ onSelectTask }) {
           </div>
           {TEAM_NAV.map(item => (
             <NavLink key={item.to} to={item.to} className={navLinkCls}>
-              <span className="text-base leading-none">{item.icon}</span>
+              <item.icon size={18} />
               <span>{item.label}</span>
             </NavLink>
           ))}
@@ -125,7 +126,7 @@ export default function Sidebar({ onSelectTask }) {
           </div>
           {MY_NAV.map(item => (
             <NavLink key={item.to} to={item.to} className={navLinkCls}>
-              <span className="text-base leading-none">{item.icon}</span>
+              <item.icon size={18} />
               <span>{item.label}</span>
               {item.to === '/emails' && overdue?.length > 0 && (
                 <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
@@ -145,7 +146,8 @@ export default function Sidebar({ onSelectTask }) {
                 to="/users"
                 className={navLinkCls}
               >
-                <span>◎</span><span>사용자 관리</span>
+                <Users size={18} />
+                <span>사용자 관리</span>
               </NavLink>
             </>
           )}
@@ -160,7 +162,7 @@ export default function Sidebar({ onSelectTask }) {
                 showNotif ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
-              <span>🔔</span>
+              <Bell size={18} />
               <span>알림</span>
               {notifCount > 0 && (
                 <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
@@ -184,7 +186,8 @@ export default function Sidebar({ onSelectTask }) {
               }`
             }
           >
-            <span>⚙</span><span>이메일 계정 설정</span>
+            <Settings size={18} />
+            <span>이메일 계정 설정</span>
           </NavLink>
           <button
             onClick={() => { logout(); navigate('/login') }}

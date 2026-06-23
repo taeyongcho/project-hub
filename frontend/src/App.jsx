@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import useAuth from './store/auth'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -20,6 +21,7 @@ function Guard({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" expand={false} richColors />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Guard><Layout /></Guard>}>

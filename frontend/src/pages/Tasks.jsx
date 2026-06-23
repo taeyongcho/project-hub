@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useOutletContext } from 'react-router-dom'
+import { toast } from 'sonner'
 import api from '../api/client'
 import useAuth from '../store/auth'
 import dayjs from 'dayjs'
@@ -47,17 +48,27 @@ export default function Tasks() {
       qc.invalidateQueries({ queryKey: ['all-tasks'] })
       setShowForm(false)
       setForm({ title: '', priority: 'normal', due_date: '', project_id: '', assigned_to_id: '' })
-    }
+      toast.success('할일이 생성되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '할일 생성 실패')
   })
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/tasks/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-tasks'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['all-tasks'] })
+      toast.success('할일이 업데이트되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '업데이트 실패')
   })
 
   const deleteMut = useMutation({
     mutationFn: id => api.delete(`/tasks/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-tasks'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['all-tasks'] })
+      toast.success('할일이 삭제되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '삭제 실패')
   })
 
   const displayTasks = filter === 'overdue'

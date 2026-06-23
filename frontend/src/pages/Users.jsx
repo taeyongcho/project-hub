@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from '../api/client'
 import useAuth from '../store/auth'
 
@@ -27,17 +28,27 @@ export default function Users() {
       qc.invalidateQueries({ queryKey: ['users'] })
       setShowForm(false)
       setForm({ name: '', email: '', password: '', role: 'member' })
-    }
+      toast.success('사용자가 생성되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '사용자 생성 실패')
   })
 
   const roleMut = useMutation({
     mutationFn: ({ id, role }) => api.patch(`/users/${id}`, { role }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('역할이 변경되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '역할 변경 실패')
   })
 
   const deactivateMut = useMutation({
     mutationFn: id => api.delete(`/users/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] })
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('사용자가 비활성화되었습니다')
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || '비활성화 실패')
   })
 
   if (me?.role !== 'admin') {
