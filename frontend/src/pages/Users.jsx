@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -16,7 +17,10 @@ export default function Users() {
   const qc = useQueryClient()
   const { user: me } = useAuth()
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'member' })
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
+    defaultValues: { name: '', email: '', password: '', role: 'member' },
+    mode: 'onBlur'
+  })
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -28,7 +32,7 @@ export default function Users() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] })
       setShowForm(false)
-      setForm({ name: '', email: '', password: '', role: 'member' })
+      reset()
       toast.success('사용자가 생성되었습니다')
     },
     onError: (err) => toast.error(err.response?.data?.detail || '사용자 생성 실패')
@@ -72,41 +76,71 @@ export default function Users() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl p-5 mb-6 border border-slate-200 shadow-card">
-          <h2 className="text-sm font-semibold text-slate-800 mb-4">새 사용자 초대</h2>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">이름 *</label>
-              <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                className={inputCls} placeholder="홍길동" />
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 mb-6 border border-slate-200 dark:border-slate-700 shadow-card">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-4">새 사용자 초대</h2>
+          <form onSubmit={handleSubmit(data => createMut.mutate(data))} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">이름 *</label>
+                <input
+                  {...register('name', { required: '이름은 필수입니다' })}
+                  className={`${inputCls} ${errors.name ? 'border-red-300 dark:border-red-600' : ''}`}
+                  placeholder="홍길동"
+                />
+                {errors.name && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.name.message}</p>}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">이메일 *</label>
+                <input
+                  type="email"
+                  {...register('email', {
+                    required: '이메일은 필수입니다',
+                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: '올바른 이메일 형식을 입력하세요' }
+                  })}
+                  className={`${inputCls} ${errors.email ? 'border-red-300 dark:border-red-600' : ''}`}
+                  placeholder="user@company.com"
+                />
+                {errors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">초기 비밀번호 *</label>
+                <input
+                  type="password"
+                  {...register('password', { required: '비밀번호는 필수입니다', minLength: { value: 6, message: '최소 6자 이상이어야 합니다' } })}
+                  className={`${inputCls} ${errors.password ? 'border-red-300 dark:border-red-600' : ''}`}
+                  placeholder="••••••••"
+                />
+                {errors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.password.message}</p>}
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">역할</label>
+                <select
+                  {...register('role')}
+                  className={inputCls}
+                >
+                  <option value="member">팀원</option>
+                  <option value="admin">관리자</option>
+                  <option value="viewer">열람자</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">이메일 *</label>
-              <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                className={inputCls} placeholder="user@company.com" />
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); reset() }}
+                className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 px-4 py-2 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || createMut.isPending}
+                className="text-sm bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 dark:hover:bg-slate-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-medium transition-colors"
+              >
+                {createMut.isPending ? '초대 중...' : '초대'}
+              </button>
             </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">초기 비밀번호 *</label>
-              <input type="password" value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                className={inputCls} placeholder="••••••••" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">역할</label>
-              <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} className={inputCls}>
-                <option value="member">팀원</option>
-                <option value="admin">관리자</option>
-                <option value="viewer">열람자</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)}
-              className="text-sm text-slate-500 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
-            <button onClick={() => form.name && form.email && form.password && createMut.mutate(form)}
-              className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
-              초대
-            </button>
-          </div>
+          </form>
         </div>
       )}
 

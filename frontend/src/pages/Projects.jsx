@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import api from '../api/client'
 import dayjs from 'dayjs'
 import { SkeletonProjectCard } from '../components/Skeleton'
+import Pagination from '../components/Pagination'
 
 const COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16']
 
@@ -15,8 +17,10 @@ export default function Projects() {
   const navigate = useNavigate()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
-  const [editProject, setEditProject] = useState(null) // 수정 대상 프로젝트
+  const [editProject, setEditProject] = useState(null)
   const [editForm, setEditForm] = useState({})
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 6
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['projects'],
@@ -81,6 +85,13 @@ export default function Projects() {
 
   const active = projects.filter(p => p.status === 'active')
   const done = projects.filter(p => p.status !== 'active')
+
+  const totalPages = Math.ceil(active.length / itemsPerPage)
+  const paginatedActive = active.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
   const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
   return (
@@ -231,7 +242,7 @@ export default function Projects() {
           Array(3).fill(0).map((_, i) => <SkeletonProjectCard key={i} />)
         ) : (
           <>
-            {active.map(p => (
+            {paginatedActive.map(p => (
               <ProjectCard key={p.id} project={p}
                 onClick={() => navigate(`/projects/${p.id}`)}
                 onEdit={e => openEdit(e, p)}
@@ -247,6 +258,14 @@ export default function Projects() {
           </>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      )}
 
       {done.length > 0 && (
         <>
@@ -265,7 +284,7 @@ export default function Projects() {
   )
 }
 
-function ProjectCard({ project: p, onClick, onEdit, onArchive, onReopen }) {
+const ProjectCard = memo(function ProjectCard({ project: p, onClick, onEdit, onArchive, onReopen }) {
   const { data: members = [] } = useQuery({
     queryKey: ['project-members', p.id],
     queryFn: () => api.get(`/projects/${p.id}/members`).then(r => r.data),
@@ -326,4 +345,4 @@ function ProjectCard({ project: p, onClick, onEdit, onArchive, onReopen }) {
       </div>
     </div>
   )
-}
+})

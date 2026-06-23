@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut } from 'lucide-react'
@@ -20,7 +20,7 @@ const MY_NAV = [
   { to: '/worklog', icon: Clock, label: '업무일지'  },
 ]
 
-export default function Sidebar({ onSelectTask }) {
+export default memo(function Sidebar({ onSelectTask }) {
   const { user, logout } = useAuth()
   const { isDark, toggle: toggleTheme } = useTheme()
   const navigate = useNavigate()
@@ -216,4 +216,4 @@ export default function Sidebar({ onSelectTask }) {
       )}
     </>
   )
-}
+})
