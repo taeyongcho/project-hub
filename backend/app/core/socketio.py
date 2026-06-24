@@ -47,6 +47,14 @@ async def join_board(sid, data):
     sio.enter_room(sid, f'board_{board_id}')
 
 
+@sio.on('sync')
+async def handle_sync(sid, data):
+    """보드 전체 상태를 같은 보드의 다른 사용자에게 전송"""
+    board_id = data.get('boardId')
+    if board_id:
+        await sio.emit('sync', data, room=f'board_{board_id}', skip_sid=sid)
+
+
 @sio.on('draw')
 async def handle_draw(sid, data):
     """그리기 이벤트를 같은 보드의 모든 사용자에게 전송"""

@@ -5,6 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, StickyNote, Trash2, ZoomIn, ZoomOut, Undo2, Redo2, Copy, BringToFront, SendToBack } from 'lucide-react'
 import { toast } from 'sonner'
 import { v4 as uuid } from 'uuid'
+import { io } from 'socket.io-client'
 import api from '../api/client'
 import { useBoard } from '../store/board'
 import useAuth from '../store/auth'
@@ -75,12 +76,18 @@ export default function Whiteboard() {
   const stageRef = useRef(null)
   const trRef = useRef(null)
   const shapeRefs = useRef({})
+  const socketRef = useRef(null)
+  const isRemoteUpdate = useRef(false) // 원격 업데이트 적용 중 플래그
+  const syncTimer = useRef(null)
+  const cursorThrottle = useRef(0)
 
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPos, setStartPos] = useState(null)
   const [stageScale, setStageScale] = useState(1)
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
   const [editingText, setEditingText] = useState(null) // { id, x, y, value }
+  const [activeUsers, setActiveUsers] = useState([])
+  const [remoteCursors, setRemoteCursors] = useState({})
 
   const {
     boardName, objects, tool, color, brushSize, selectedId,
@@ -126,6 +133,59 @@ export default function Whiteboard() {
       saveMut.mutate({ objects })
     }, 1500)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [objects])
+
+  // Socket.io 연결
+  useEffect(() => {
+    if (!board || !user || !boardId || boardId === 'undefined') return
+
+    const socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'] })
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      socket.emit('join_board', { boardId, userId: user.id, userName: user.name })
+    })
+
+    // 다른 사용자의 전체 상태 수신
+    socket.on('sync', (data) => {
+      if (data.objects) {
+        isRemoteUpdate.current = true
+        setObjects(data.objects)
+      }
+    })
+
+    socket.on('user_joined', (data) => {
+      setActiveUsers(data.activeUsers || [])
+      if (data.userName && data.userName !== user.name) toast.success(`${data.userName}님이 입장했습니다`)
+    })
+
+    socket.on('user_left', (data) => {
+      setActiveUsers(data.activeUsers || [])
+      setRemoteCursors(prev => {
+        const next = { ...prev }
+        delete next[data.userId]
+        return next
+      })
+    })
+
+    socket.on('cursor', (data) => {
+      setRemoteCursors(prev => ({
+        ...prev,
+        [data.userId]: { x: data.x, y: data.y, userName: data.userName, color: data.color }
+      }))
+    })
+
+    return () => { socket.disconnect(); socketRef.current = null }
+  }, [board, user, boardId])
+
+  // 로컬 변경을 다른 사용자에게 브로드캐스트 (원격 업데이트는 제외)
+  useEffect(() => {
+    if (!loadedRef.current || !socketRef.current) return
+    if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return }
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    syncTimer.current = setTimeout(() => {
+      socketRef.current?.emit('sync', { boardId, objects })
+    }, 250)
   }, [objects])
 
   // Transformer를 선택된 오브젝트에 연결
@@ -262,6 +322,16 @@ export default function Whiteboard() {
   }
 
   const handleMouseMove = (e) => {
+    // 커서 위치 브로드캐스트 (50ms 스로틀)
+    if (socketRef.current) {
+      const now = Date.now()
+      if (now - cursorThrottle.current > 50) {
+        cursorThrottle.current = now
+        const p = getRelativePos()
+        if (p) socketRef.current.emit('cursor', { boardId, x: p.x, y: p.y, color })
+      }
+    }
+
     if (!isDrawing || !startPos) return
     const pos = getRelativePos()
     if (!pos) return
@@ -367,6 +437,19 @@ export default function Whiteboard() {
           <button onClick={() => navigate(-1)} className="text-slate-600 dark:text-slate-400 hover:text-slate-900">←</button>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{boardName}</h1>
           <span className="text-xs text-slate-400">{Math.round(stageScale * 100)}%</span>
+          {/* 함께 보는 사용자 */}
+          {activeUsers.length > 1 && (
+            <div className="flex items-center -space-x-2 ml-2">
+              {activeUsers.slice(0, 5).map((u, i) => (
+                <div key={u.userId + '' + i} title={u.userName}
+                  className="w-7 h-7 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center text-[11px] font-bold text-white"
+                  style={{ backgroundColor: `hsl(${(u.userId * 137) % 360}, 60%, 50%)` }}>
+                  {u.userName?.[0] || '?'}
+                </div>
+              ))}
+              <span className="pl-3 text-xs text-green-600 font-medium">● {activeUsers.length}명 접속</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {/* 실행취소 / 다시실행 */}
@@ -522,6 +605,20 @@ export default function Whiteboard() {
               )}
             </Layer>
           </Stage>
+
+          {/* 다른 사용자 커서 */}
+          {Object.entries(remoteCursors).map(([uid, c]) => (
+            <div key={uid} className="absolute pointer-events-none z-50"
+              style={{ left: c.x * stageScale + stagePos.x, top: c.y * stageScale + stagePos.y, transition: 'left 0.05s linear, top 0.05s linear' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill={c.color || '#3b82f6'}>
+                <path d="M3 2l7 18 2.5-7.5L20 10z" />
+              </svg>
+              <span className="absolute left-4 top-3 text-[11px] px-1.5 py-0.5 rounded text-white whitespace-nowrap"
+                style={{ backgroundColor: c.color || '#3b82f6' }}>
+                {c.userName}
+              </span>
+            </div>
+          ))}
 
           {/* 텍스트 편집 오버레이 */}
           {editingText && (

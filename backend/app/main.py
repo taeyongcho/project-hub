@@ -105,5 +105,5 @@ async def health():
     return {"status": "ok"}
 
 
-# Socket.io ASGI 앱으로 래핑 (임시 비활성화)
-# app = ASGIApp(sio, app)
+# Socket.io ASGI 앱으로 래핑
+app = ASGIApp(sio, app)
