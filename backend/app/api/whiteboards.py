@@ -30,6 +30,28 @@ class WhiteboardResponse(BaseModel):
     updated_at: str
 
 
+@router.get("")
+async def list_whiteboards(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user)
+):
+    result = await db.execute(
+        select(Whiteboard).order_by(Whiteboard.updated_at.desc())
+    )
+    boards = result.scalars().all()
+    return [
+        {
+            "id": wb.id,
+            "name": wb.name,
+            "object_count": len(wb.objects) if isinstance(wb.objects, list) else 0,
+            "created_by_id": wb.created_by_id,
+            "created_at": str(wb.created_at),
+            "updated_at": str(wb.updated_at)
+        }
+        for wb in boards
+    ]
+
+
 @router.post("")
 async def create_whiteboard(
     data: WhiteboardCreate,

@@ -140,9 +140,8 @@ export default function Dashboard() {
           <p className="text-slate-400 text-sm mt-1">{dayjs().format('YYYY년 MM월 DD일 dddd')}</p>
         </div>
         <button
-          onClick={() => createWhiteboardMut.mutate()}
-          disabled={createWhiteboardMut.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-medium transition-colors"
+          onClick={() => navigate('/whiteboards')}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
         >
           <PenTool size={18} />
           화이트보드

@@ -13,6 +13,7 @@ import Reports from './pages/Reports'
 import Users from './pages/Users'
 import EmailSettings from './pages/EmailSettings'
 import Whiteboard from './pages/Whiteboard'
+import Whiteboards from './pages/Whiteboards'
 import NotFound from './pages/NotFound'
 import ServerError from './pages/ServerError'
 
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />
           <Route path="email-settings" element={<EmailSettings />} />
+          <Route path="whiteboards" element={<Whiteboards />} />
           <Route path="whiteboard/:boardId" element={<Whiteboard />} />
         </Route>
         <Route path="*" element={<NotFound />} />
