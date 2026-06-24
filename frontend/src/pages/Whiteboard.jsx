@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { Stage, Layer, Line, Rect, Circle, Text, Group, Image as KonvaImage, Transformer } from 'react-konva'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, StickyNote, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
+import { MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, StickyNote, Trash2, ZoomIn, ZoomOut, Undo2, Redo2, Copy, BringToFront, SendToBack } from 'lucide-react'
 import { toast } from 'sonner'
 import { v4 as uuid } from 'uuid'
 import api from '../api/client'
@@ -84,9 +84,12 @@ export default function Whiteboard() {
 
   const {
     boardName, objects, tool, color, brushSize, selectedId,
+    past, future,
     initBoard, setTool, setColor, setBrushSize,
     addObject, updateObject, deleteObject, setObjects,
-    selectObject, deselect
+    selectObject, deselect,
+    snapshot, undo, redo, duplicateObject,
+    bringToFront, sendToBack, bringForward, sendBackward
   } = useBoard()
 
   const { data: board, isLoading } = useQuery({
@@ -152,6 +155,7 @@ export default function Whiteboard() {
             img.onload = () => {
               const maxW = 400
               const scale = img.width > maxW ? maxW / img.width : 1
+              snapshot()
               addObject({
                 type: 'image',
                 src,
@@ -171,11 +175,36 @@ export default function Whiteboard() {
     return () => window.removeEventListener('paste', handlePaste)
   }, [])
 
-  // Delete 키로 삭제
+  // 키보드 단축키
   useEffect(() => {
     const handleKey = (e) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !editingText) {
+      if (editingText) return // 편집 중에는 단축키 무시
+      const meta = e.ctrlKey || e.metaKey
+
+      // 삭제
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+        e.preventDefault()
+        snapshot()
         deleteObject(selectedId)
+        return
+      }
+      // 실행취소 / 다시실행
+      if (meta && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (meta && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        redo()
+        return
+      }
+      // 복제
+      if (meta && e.key.toLowerCase() === 'd' && selectedId) {
+        e.preventDefault()
+        duplicateObject(selectedId)
+        return
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -204,6 +233,7 @@ export default function Whiteboard() {
     if (!pos) return
 
     if (tool === 'sticky') {
+      snapshot()
       const id = uuid()
       addObject({ id, type: 'sticky', x: pos.x, y: pos.y, width: 140, height: 120, text: '', color: '#fde047' })
       setTool('select')
@@ -213,6 +243,7 @@ export default function Whiteboard() {
     }
 
     if (tool === 'text') {
+      snapshot()
       const id = uuid()
       addObject({ id, type: 'text', x: pos.x, y: pos.y, text: '', fontSize: 18, color })
       setTool('select')
@@ -223,6 +254,7 @@ export default function Whiteboard() {
 
     setIsDrawing(true)
     setStartPos(pos)
+    snapshot() // 그리기 시작 전 상태 저장 (pen/rect/circle/line 공통)
 
     if (tool === 'pen') {
       addObject({ type: 'pen', points: [pos.x, pos.y], color, brushSize })
@@ -336,12 +368,21 @@ export default function Whiteboard() {
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{boardName}</h1>
           <span className="text-xs text-slate-400">{Math.round(stageScale * 100)}%</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {/* 실행취소 / 다시실행 */}
+          <button onClick={undo} disabled={past.length === 0} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg disabled:opacity-30" title="실행취소 (Ctrl+Z)"><Undo2 size={18} /></button>
+          <button onClick={redo} disabled={future.length === 0} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg disabled:opacity-30" title="다시실행 (Ctrl+Shift+Z)"><Redo2 size={18} /></button>
+
           {selectedId && (
-            <button onClick={() => deleteObject(selectedId)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title="삭제">
-              <Trash2 size={18} />
-            </button>
+            <>
+              <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
+              <button onClick={() => duplicateObject(selectedId)} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" title="복제 (Ctrl+D)"><Copy size={18} /></button>
+              <button onClick={() => bringToFront(selectedId)} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" title="맨 앞으로"><BringToFront size={18} /></button>
+              <button onClick={() => sendToBack(selectedId)} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg" title="맨 뒤로"><SendToBack size={18} /></button>
+              <button onClick={() => { snapshot(); deleteObject(selectedId) }} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title="삭제 (Delete)"><Trash2 size={18} /></button>
+            </>
           )}
+          <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
           <button onClick={() => zoom('out')} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ZoomOut size={18} /></button>
           <button onClick={() => zoom('in')} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ZoomIn size={18} /></button>
           <span className="text-xs px-2 text-slate-400 min-w-[60px] text-center">
@@ -399,6 +440,8 @@ export default function Whiteboard() {
                   draggable: isSelectMode,
                   onClick: () => isSelectMode && selectObject(obj.id),
                   onTap: () => isSelectMode && selectObject(obj.id),
+                  onDragStart: () => snapshot(),
+                  onTransformStart: () => snapshot(),
                   onDragEnd: (e) => updateObject(obj.id, { x: e.target.x(), y: e.target.y() })
                 }
 
@@ -526,6 +569,8 @@ export default function Whiteboard() {
         <span>🖼️ Ctrl+V 로 이미지 붙여넣기</span>
         <span>✏️ 텍스트/스티커 더블클릭 편집</span>
         <span>🗑️ Delete 키로 삭제</span>
+        <span>↩️ Ctrl+Z 실행취소</span>
+        <span>📋 Ctrl+D 복제</span>
         <span>🔍 휠로 확대/축소</span>
       </div>
     </div>
