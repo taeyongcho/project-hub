@@ -43,8 +43,8 @@ async def join_board(sid, data):
         'activeUsers': [user_info[s] for s in board_users.get(board_id, []) if s in user_info]
     }, room=f'board_{board_id}')
 
-    # 이 클라이언트를 room에 추가
-    sio.enter_room(sid, f'board_{board_id}')
+    # 이 클라이언트를 room에 추가 (AsyncServer는 await 필요)
+    await sio.enter_room(sid, f'board_{board_id}')
 
 
 @sio.on('sync')
@@ -67,7 +67,7 @@ async def handle_draw(sid, data):
 async def handle_cursor(sid, data):
     """커서 위치를 다른 사용자들에게 전송"""
     board_id = data.get('boardId')
-    if board_id and f'board_{board_id}' in [r for r in sio.rooms(sid) if isinstance(r, str)]:
+    if board_id:
         cursor_data = {
             **data,
             'userId': user_info.get(sid, {}).get('userId'),

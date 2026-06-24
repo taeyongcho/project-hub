@@ -77,7 +77,7 @@ export default function Whiteboard() {
   const trRef = useRef(null)
   const shapeRefs = useRef({})
   const socketRef = useRef(null)
-  const isRemoteUpdate = useRef(false) // 원격 업데이트 적용 중 플래그
+  const lastSyncRef = useRef('') // 마지막으로 주고받은 상태 (에코 방지)
   const syncTimer = useRef(null)
   const cursorThrottle = useRef(0)
 
@@ -102,7 +102,9 @@ export default function Whiteboard() {
   const { data: board, isLoading } = useQuery({
     queryKey: ['board', boardId],
     queryFn: () => api.get(`/whiteboards/${boardId}`).then(r => r.data),
-    enabled: !!boardId
+    enabled: !!boardId,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity
   })
 
   const [saveStatus, setSaveStatus] = useState('saved') // 'saved' | 'saving' | 'unsaved'
@@ -116,8 +118,10 @@ export default function Whiteboard() {
     onError: () => { setSaveStatus('unsaved'); toast.error('저장 실패') }
   })
 
+  const initialLoadRef = useRef(false)
   useEffect(() => {
-    if (!board || !user) return
+    if (!board || !user || initialLoadRef.current) return
+    initialLoadRef.current = true
     initBoard(board.id, board.name)
     if (board.objects) setObjects(board.objects)
     // 로드 완료 표시 (초기 setObjects가 자동저장 트리거하지 않도록)
@@ -135,9 +139,9 @@ export default function Whiteboard() {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [objects])
 
-  // Socket.io 연결
+  // Socket.io 연결 (boardId, userId 가 바뀔 때만 재연결)
   useEffect(() => {
-    if (!board || !user || !boardId || boardId === 'undefined') return
+    if (!user?.id || !boardId || boardId === 'undefined') return
 
     const socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'] })
     socketRef.current = socket
@@ -146,10 +150,15 @@ export default function Whiteboard() {
       socket.emit('join_board', { boardId, userId: user.id, userName: user.name })
     })
 
+    socket.on('connect_error', (err) => {
+      console.error('[SOCKET] 연결 오류', err.message)
+    })
+
     // 다른 사용자의 전체 상태 수신
     socket.on('sync', (data) => {
       if (data.objects) {
-        isRemoteUpdate.current = true
+        // 받은 상태를 기록해 두면, 이 상태로 인한 내 broadcast 효과가 다시 쏘지 않음
+        lastSyncRef.current = JSON.stringify(data.objects)
         setObjects(data.objects)
       }
     })
@@ -176,16 +185,18 @@ export default function Whiteboard() {
     })
 
     return () => { socket.disconnect(); socketRef.current = null }
-  }, [board, user, boardId])
+  }, [boardId, user?.id, user?.name])
 
-  // 로컬 변경을 다른 사용자에게 브로드캐스트 (원격 업데이트는 제외)
+  // 로컬 변경을 다른 사용자에게 브로드캐스트 (받은 상태와 같으면 전송 안 함 → 에코 차단)
   useEffect(() => {
     if (!loadedRef.current || !socketRef.current) return
-    if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return }
+    const serialized = JSON.stringify(objects)
+    if (serialized === lastSyncRef.current) return // 원격에서 받은 그대로면 되쏘지 않음
+    lastSyncRef.current = serialized
     if (syncTimer.current) clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => {
       socketRef.current?.emit('sync', { boardId, objects })
-    }, 250)
+    }, 150)
   }, [objects])
 
   // Transformer를 선택된 오브젝트에 연결
