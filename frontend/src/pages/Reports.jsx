@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import api from '../api/client'
 import useAuth from '../store/auth'
 import dayjs from 'dayjs'
@@ -126,7 +128,8 @@ function WeeklyContent({ content }) {
         <StatBox label="처리 이메일" value={content.emails_processed} color="text-blue-600" bg="bg-blue-50" />
       </div>
       <Section title="완료 업무" items={content.completed_work} emptyText="기록된 완료 업무 없음" />
-      <Section title="이슈 / 리스크" items={content.issues} emptyText="이슈 없음" itemColor="text-amber-700" />
+      <Section title="이슈 / 리스크" items={content.issues} emptyText="이슈 없음" />
+      <Section title="다음 업무 계획" items={content.next_plans} emptyText="기록된 계획 없음" />
       <div className="text-xs text-slate-400 pt-3 border-t border-slate-100">
         생성: {dayjs(content.generated_at).format('YYYY-MM-DD HH:mm')} · 기간: {content.period_start} ~ {content.period_end}
       </div>
@@ -181,20 +184,19 @@ function StatBox({ label, value, color, bg }) {
   )
 }
 
-function Section({ title, items, emptyText, itemColor = 'text-slate-700' }) {
+function Section({ title, items, emptyText }) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-slate-700 mb-2">{title}</h3>
       {!items?.length
         ? <p className="text-slate-400 text-sm">{emptyText}</p>
-        : <ul className="space-y-1.5">
+        : <div className="space-y-3">
           {items.map((item, i) => (
-            <li key={i} className={`text-sm ${itemColor} flex gap-2`}>
-              <span className="text-slate-300 flex-shrink-0">·</span>
-              <span className="whitespace-pre-wrap">{item}</span>
-            </li>
+            <div key={i} className="markdown-body text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{item}</ReactMarkdown>
+            </div>
           ))}
-        </ul>
+        </div>
       }
     </div>
   )

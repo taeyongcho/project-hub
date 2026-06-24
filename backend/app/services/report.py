@@ -31,6 +31,7 @@ async def _collect_weekly_data(db: AsyncSession) -> dict:
 
     issues = [l.issues for l in logs if l.issues]
     contents = [l.content for l in logs if l.content]
+    next_plans = [l.next_plan for l in logs if getattr(l, "next_plan", None)]
 
     return {
         "period_start": str(week_start),
@@ -40,6 +41,7 @@ async def _collect_weekly_data(db: AsyncSession) -> dict:
         "emails_processed": emails_done or 0,
         "completed_work": contents,
         "issues": issues,
+        "next_plans": next_plans,
         "generated_at": str(datetime.now()),
     }
 
@@ -163,6 +165,10 @@ async def export_to_docx(db: AsyncSession, report_id: int) -> io.BytesIO:
 
         doc.add_heading("이슈 / 리스크", 1)
         for item in content.get("issues", []):
+            doc.add_paragraph(item, style="List Bullet")
+
+        doc.add_heading("다음 업무 계획", 1)
+        for item in content.get("next_plans", []):
             doc.add_paragraph(item, style="List Bullet")
 
     elif r["type"] == "monthly":

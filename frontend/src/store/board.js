@@ -10,6 +10,7 @@ export const useBoard = create((set, get) => ({
   tool: 'select',
   color: '#000000',
   brushSize: 3,
+  fontSize: 18,
   selectedId: null,
 
   // 히스토리 스택
@@ -24,6 +25,7 @@ export const useBoard = create((set, get) => ({
   setTool: (tool) => set({ tool }),
   setColor: (color) => set({ color }),
   setBrushSize: (size) => set({ brushSize: size }),
+  setFontSize: (size) => set({ fontSize: size }),
 
   // 현재 상태를 히스토리에 저장 (변경 직전 호출)
   snapshot: () => set((state) => ({

@@ -93,14 +93,17 @@ export default function Whiteboard() {
   const [commentPopup, setCommentPopup] = useState(null) // { id, x, y, text, author, editing }
 
   const {
-    boardName, objects, tool, color, brushSize, selectedId,
+    boardName, objects, tool, color, brushSize, fontSize, selectedId,
     past, future,
-    initBoard, setTool, setColor, setBrushSize,
+    initBoard, setTool, setColor, setBrushSize, setFontSize,
     addObject, updateObject, deleteObject, setObjects,
     selectObject, deselect,
     snapshot, undo, redo, duplicateObject,
     bringToFront, sendToBack, bringForward, sendBackward
   } = useBoard()
+
+  // 선택된 텍스트/스티커 오브젝트
+  const selectedObj = objects.find(o => o.id === selectedId)
 
   const { data: board, isLoading } = useQuery({
     queryKey: ['board', boardId],
@@ -309,20 +312,20 @@ export default function Whiteboard() {
     if (tool === 'sticky') {
       snapshot()
       const id = uuid()
-      addObject({ id, type: 'sticky', x: pos.x, y: pos.y, width: 140, height: 120, text: '', color: '#fde047' })
+      addObject({ id, type: 'sticky', x: pos.x, y: pos.y, width: 140, height: 120, text: '', color: '#fde047', fontSize: 14 })
       setTool('select')
       selectObject(id)
-      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 140, fontSize: 14 }), 50)
+      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 140, fontSize: 14, type: 'sticky' }), 50)
       return
     }
 
     if (tool === 'text') {
       snapshot()
       const id = uuid()
-      addObject({ id, type: 'text', x: pos.x, y: pos.y, text: '', fontSize: 18, color })
+      addObject({ id, type: 'text', x: pos.x, y: pos.y, text: '', fontSize, color })
       setTool('select')
       selectObject(id)
-      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 200, fontSize: 18 }), 50)
+      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 200, fontSize, type: 'text', color }), 50)
       return
     }
 
@@ -412,10 +415,12 @@ export default function Whiteboard() {
   }
 
   // 캔버스 좌표 기준으로 편집창 열기
-  const openEditorFor = ({ id, x, y, text, width, fontSize }) => {
+  const openEditorFor = ({ id, x, y, text, width, fontSize, type, color }) => {
     const stageBox = stageRef.current.container().getBoundingClientRect()
     setEditingText({
       id,
+      type: type || 'text',
+      color: color || '#000000',
       x: stageBox.left + x * stageScale + stagePos.x,
       y: stageBox.top + y * stageScale + stagePos.y,
       value: text || '',
@@ -432,7 +437,9 @@ export default function Whiteboard() {
       y: obj.y,
       text: obj.text,
       width: obj.width || 200,
-      fontSize: obj.fontSize || 16
+      fontSize: obj.fontSize || 16,
+      type: obj.type,
+      color: obj.color
     })
   }
 
@@ -519,8 +526,28 @@ export default function Whiteboard() {
             ))}
           </div>
           <div className="border-t border-slate-200 dark:border-slate-800 my-2 w-10" />
-          <label className="text-xs text-slate-500 dark:text-slate-400">크기</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400">선</label>
           <input type="range" min="1" max="20" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-10 h-1" />
+
+          {/* 글자 크기 */}
+          <div className="border-t border-slate-200 dark:border-slate-800 my-2 w-10" />
+          <label className="text-xs text-slate-500 dark:text-slate-400">글자</label>
+          <select
+            value={(selectedObj && (selectedObj.type === 'text' || selectedObj.type === 'sticky')) ? selectedObj.fontSize : fontSize}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setFontSize(v)
+              if (selectedObj && (selectedObj.type === 'text' || selectedObj.type === 'sticky')) {
+                snapshot()
+                updateObject(selectedObj.id, { fontSize: v })
+              }
+            }}
+            className="w-12 text-xs px-1 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 outline-none"
+          >
+            {[12, 14, 16, 18, 24, 32, 40, 48, 64].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </div>
 
         {/* 캔버스 */}
@@ -601,7 +628,10 @@ export default function Whiteboard() {
                 }
                 if (obj.type === 'text') {
                   return (
-                    <Text key={obj.id} {...common} x={obj.x} y={obj.y} text={obj.text} fontSize={obj.fontSize} fill={obj.color}
+                    <Text key={obj.id} {...common} x={obj.x} y={obj.y}
+                      text={obj.text || (editingText?.id === obj.id ? '' : '텍스트')}
+                      fontSize={obj.fontSize} fill={obj.color}
+                      visible={editingText?.id !== obj.id}
                       onDblClick={() => handleDblClick(obj)} onDblTap={() => handleDblClick(obj)}
                       onTransformEnd={(e) => {
                         const node = e.target
@@ -622,7 +652,7 @@ export default function Whiteboard() {
                         updateObject(obj.id, { x: node.x(), y: node.y(), width: Math.max(60, obj.width * sx), height: Math.max(60, obj.height * sy) })
                       }}>
                       <Rect width={obj.width} height={obj.height} fill={obj.color} cornerRadius={4} shadowBlur={6} shadowOffsetY={3} shadowOpacity={0.2} />
-                      <Text x={10} y={10} text={obj.text} fontSize={14} width={obj.width - 20} height={obj.height - 20} fill="#1f2937" wrap="word" />
+                      <Text x={10} y={10} text={obj.text} fontSize={obj.fontSize || 14} width={obj.width - 20} height={obj.height - 20} fill="#1f2937" wrap="word" verticalAlign="top" />
                     </Group>
                   )
                 }
@@ -689,11 +719,58 @@ export default function Whiteboard() {
           )}
 
           {/* 텍스트 편집 오버레이 */}
-          {editingText && (
+          {editingText && (editingText.type === 'text' ? (
+            // 순수 텍스트: 캔버스에 직접 쓰는 느낌 (테두리/배경 없음, 자동 확장)
             <textarea
               autoFocus
               value={editingText.value}
-              onChange={(e) => setEditingText({ ...editingText, value: e.target.value })}
+              onChange={(e) => {
+                setEditingText({ ...editingText, value: e.target.value })
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+                e.target.style.width = 'auto'
+                e.target.style.width = Math.max(e.target.scrollWidth + 4, 20) + 'px'
+              }}
+              onFocus={(e) => {
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }}
+              onBlur={commitText}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setEditingText(null)
+              }}
+              style={{
+                position: 'fixed',
+                left: editingText.x,
+                top: editingText.y,
+                fontSize: editingText.fontSize,
+                lineHeight: 1.2,
+                color: editingText.color,
+                fontFamily: 'Arial, sans-serif',
+                padding: 0,
+                margin: 0,
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                resize: 'none',
+                overflow: 'hidden',
+                whiteSpace: 'pre',
+                minWidth: '20px',
+                zIndex: 1000,
+                caretColor: editingText.color
+              }}
+            />
+          ) : (
+            // 스티커 등: 박스형 입력 (위에서 아래로 자동 확장)
+            <textarea
+              autoFocus
+              ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = Math.max(el.scrollHeight, 80) + 'px' } }}
+              value={editingText.value}
+              onChange={(e) => {
+                setEditingText({ ...editingText, value: e.target.value })
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.max(e.target.scrollHeight, 80) + 'px'
+              }}
               onBlur={commitText}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && e.ctrlKey) commitText()
@@ -703,27 +780,27 @@ export default function Whiteboard() {
                 position: 'fixed',
                 left: editingText.x + 10,
                 top: editingText.y + 10,
-                width: Math.max(editingText.width || 200, 200),
-                minWidth: '200px',
-                minHeight: '80px',
-                height: 'auto',
+                width: Math.max(editingText.width || 200, 160),
                 fontSize: Math.max(editingText.fontSize || 14, 14),
                 lineHeight: '1.4',
-                padding: '6px',
+                padding: '8px',
                 border: '2px solid #3b82f6',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 outline: 'none',
-                resize: 'both',
+                resize: 'none',
+                overflow: 'hidden',
                 zIndex: 1000,
                 fontFamily: 'inherit',
                 boxSizing: 'border-box',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
                 background: '#ffffff',
-                color: '#000000'
+                color: '#000000',
+                verticalAlign: 'top',
+                textAlign: 'left'
               }}
             />
-          )}
+          ))}
         </div>
       </div>
 
