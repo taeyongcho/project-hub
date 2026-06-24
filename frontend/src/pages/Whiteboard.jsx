@@ -1,155 +1,223 @@
 import { useRef, useEffect, useState } from 'react'
-import { Stage, Layer, Line, Rect, Circle, Text } from 'react-konva'
+import { Stage, Layer, Line, Rect, Circle, Text, Group, Image as KonvaImage, Transformer } from 'react-konva'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Pen, Square, Circle as CircleIcon, Type, Sticky, Trash2, Share2 } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, StickyNote, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
 import { toast } from 'sonner'
-import { io } from 'socket.io-client'
+import { v4 as uuid } from 'uuid'
 import api from '../api/client'
 import { useBoard } from '../store/board'
 import useAuth from '../store/auth'
 
 const TOOLS = [
+  { id: 'select', icon: MousePointer2, label: '선택' },
+  { id: 'hand', icon: Hand, label: '이동(패닝)' },
   { id: 'pen', icon: Pen, label: '펜' },
   { id: 'rectangle', icon: Square, label: '사각형' },
   { id: 'circle', icon: CircleIcon, label: '원' },
   { id: 'line', icon: Pen, label: '선' },
   { id: 'text', icon: Type, label: '텍스트' },
-  { id: 'sticky', icon: Sticky, label: '스티커' },
+  { id: 'sticky', icon: StickyNote, label: '스티커' },
 ]
 
 const COLORS = ['#000000', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
+
+// 이미지 로딩 훅
+function useImage(src) {
+  const [image, setImage] = useState(null)
+  useEffect(() => {
+    if (!src) return
+    const img = new window.Image()
+    img.src = src
+    img.onload = () => setImage(img)
+  }, [src])
+  return image
+}
+
+// 이미지 오브젝트 컴포넌트
+function URLImage({ obj, onSelect, onChange, draggable, setRef }) {
+  const image = useImage(obj.src)
+  const ref = useRef()
+  return (
+    <KonvaImage
+      ref={(node) => { ref.current = node; setRef(node) }}
+      image={image}
+      x={obj.x}
+      y={obj.y}
+      width={obj.width}
+      height={obj.height}
+      draggable={draggable}
+      onClick={onSelect}
+      onTap={onSelect}
+      onDragEnd={(e) => onChange({ x: e.target.x(), y: e.target.y() })}
+      onTransformEnd={() => {
+        const node = ref.current
+        const scaleX = node.scaleX()
+        const scaleY = node.scaleY()
+        node.scaleX(1)
+        node.scaleY(1)
+        onChange({
+          x: node.x(),
+          y: node.y(),
+          width: Math.max(20, node.width() * scaleX),
+          height: Math.max(20, node.height() * scaleY)
+        })
+      }}
+    />
+  )
+}
 
 export default function Whiteboard() {
   const { boardId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const qc = useQueryClient()
 
   const stageRef = useRef(null)
-  const socketRef = useRef(null)
+  const trRef = useRef(null)
+  const shapeRefs = useRef({})
+
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPos, setStartPos] = useState(null)
-  const [activeUsers, setActiveUsers] = useState([])
-  const [remoteCursors, setRemoteCursors] = useState({})
+  const [stageScale, setStageScale] = useState(1)
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
+  const [editingText, setEditingText] = useState(null) // { id, x, y, value }
 
   const {
-    boardName, objects, tool, color, brushSize,
+    boardName, objects, tool, color, brushSize, selectedId,
     initBoard, setTool, setColor, setBrushSize,
     addObject, updateObject, deleteObject, setObjects,
     selectObject, deselect
   } = useBoard()
 
-  // 보드 데이터 로드
   const { data: board, isLoading } = useQuery({
     queryKey: ['board', boardId],
     queryFn: () => api.get(`/whiteboards/${boardId}`).then(r => r.data),
     enabled: !!boardId
   })
 
-  // 보드 저장
+  const [saveStatus, setSaveStatus] = useState('saved') // 'saved' | 'saving' | 'unsaved'
+  const saveTimer = useRef(null)
+  const loadedRef = useRef(false)
+
   const saveMut = useMutation({
     mutationFn: (data) => api.patch(`/whiteboards/${boardId}`, data),
-    onSuccess: () => toast.success('저장됨')
+    onMutate: () => setSaveStatus('saving'),
+    onSuccess: () => setSaveStatus('saved'),
+    onError: () => { setSaveStatus('unsaved'); toast.error('저장 실패') }
   })
 
-  // Socket.io 연결 및 초기화
   useEffect(() => {
     if (!board || !user) return
-
     initBoard(board.id, board.name)
     if (board.objects) setObjects(board.objects)
-
-    // Socket.io 연결
-    socketRef.current = io(window.location.origin, {
-      path: '/socket.io',
-      query: { boardId: boardId }
-    })
-
-    socketRef.current.on('connect', () => {
-      console.log('Socket.io 연결됨')
-      // 보드 join
-      socketRef.current.emit('join_board', {
-        boardId: boardId,
-        userId: user.id,
-        userName: user.name
-      })
-    })
-
-    // 다른 사용자가 그렸을 때
-    socketRef.current.on('draw', (data) => {
-      addObject(data.object)
-    })
-
-    // 다른 사용자가 삭제했을 때
-    socketRef.current.on('delete_object', (data) => {
-      deleteObject(data.objectId)
-    })
-
-    // 다른 사용자가 업데이트했을 때
-    socketRef.current.on('update_object', (data) => {
-      updateObject(data.objectId, data.updates)
-    })
-
-    // 사용자 입장
-    socketRef.current.on('user_joined', (data) => {
-      setActiveUsers(data.activeUsers)
-      if (data.userName !== user.name) {
-        toast.success(`${data.userName}님이 입장했습니다`)
-      }
-    })
-
-    // 사용자 퇴장
-    socketRef.current.on('user_left', (data) => {
-      setActiveUsers(data.activeUsers)
-      toast.info(`${data.userName}님이 퇴장했습니다`)
-    })
-
-    // 다른 사용자 커서
-    socketRef.current.on('cursor', (data) => {
-      setRemoteCursors(prev => ({
-        ...prev,
-        [data.userId]: { x: data.x, y: data.y, userName: data.userName, color: data.color }
-      }))
-    })
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-      }
-    }
+    // 로드 완료 표시 (초기 setObjects가 자동저장 트리거하지 않도록)
+    setTimeout(() => { loadedRef.current = true }, 100)
   }, [board, user])
 
+  // 자동 저장 (변경 1.5초 후)
+  useEffect(() => {
+    if (!loadedRef.current || !boardId || boardId === 'undefined') return
+    setSaveStatus('unsaved')
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      saveMut.mutate({ objects })
+    }, 1500)
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [objects])
+
+  // Transformer를 선택된 오브젝트에 연결
+  useEffect(() => {
+    if (!trRef.current) return
+    if (selectedId && shapeRefs.current[selectedId]) {
+      trRef.current.nodes([shapeRefs.current[selectedId]])
+      trRef.current.getLayer()?.batchDraw()
+    } else {
+      trRef.current.nodes([])
+    }
+  }, [selectedId, objects])
+
+  // 클립보드 이미지 붙여넣기 (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile()
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            const src = ev.target.result
+            const img = new window.Image()
+            img.src = src
+            img.onload = () => {
+              const maxW = 400
+              const scale = img.width > maxW ? maxW / img.width : 1
+              addObject({
+                type: 'image',
+                src,
+                x: 100,
+                y: 100,
+                width: img.width * scale,
+                height: img.height * scale
+              })
+              toast.success('이미지 붙여넣기 완료')
+            }
+          }
+          reader.readAsDataURL(file)
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [])
+
+  // Delete 키로 삭제
+  useEffect(() => {
+    const handleKey = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && !editingText) {
+        deleteObject(selectedId)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [selectedId, editingText])
+
+  // 화면 좌표 → 캔버스 좌표 변환
+  const getRelativePos = () => {
+    const stage = stageRef.current
+    const pointer = stage.getPointerPosition()
+    return {
+      x: (pointer.x - stagePos.x) / stageScale,
+      y: (pointer.y - stagePos.y) / stageScale
+    }
+  }
+
   const handleMouseDown = (e) => {
-    const pos = stageRef.current.getPointerPosition()
+    // 빈 영역 클릭 시 선택 해제
+    if (e.target === e.target.getStage()) {
+      deselect()
+    }
+
+    if (tool === 'select' || tool === 'hand') return
+
+    const pos = getRelativePos()
     if (!pos) return
 
     if (tool === 'sticky') {
-      const newObj = {
-        type: 'sticky',
-        x: pos.x,
-        y: pos.y,
-        width: 120,
-        height: 100,
-        text: '새 스티커',
-        color: '#fbbf24'
-      }
-      addObject(newObj)
-      socketRef.current?.emit('draw', { boardId, object: newObj })
+      const id = uuid()
+      addObject({ id, type: 'sticky', x: pos.x, y: pos.y, width: 140, height: 120, text: '', color: '#fde047' })
+      setTool('select')
+      selectObject(id)
+      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 140, fontSize: 14 }), 50)
       return
     }
 
     if (tool === 'text') {
-      const newObj = {
-        type: 'text',
-        x: pos.x,
-        y: pos.y,
-        text: '텍스트 입력',
-        fontSize: 16,
-        color
-      }
-      addObject(newObj)
-      socketRef.current?.emit('draw', { boardId, object: newObj })
+      const id = uuid()
+      addObject({ id, type: 'text', x: pos.x, y: pos.y, text: '', fontSize: 18, color })
+      setTool('select')
+      selectObject(id)
+      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 200, fontSize: 18 }), 50)
       return
     }
 
@@ -157,320 +225,308 @@ export default function Whiteboard() {
     setStartPos(pos)
 
     if (tool === 'pen') {
-      addObject({
-        type: 'pen',
-        points: [pos.x, pos.y],
-        color,
-        brushSize
-      })
+      addObject({ type: 'pen', points: [pos.x, pos.y], color, brushSize })
     }
   }
 
   const handleMouseMove = (e) => {
-    // 커서 위치 전송
-    const pos = stageRef.current?.getPointerPosition()
-    if (pos) {
-      socketRef.current?.emit('cursor', { boardId, x: pos.x, y: pos.y, color })
-    }
-
     if (!isDrawing || !startPos) return
-    const pos2 = stageRef.current.getPointerPosition()
-    if (!pos2) return
-
+    const pos = getRelativePos()
+    if (!pos) return
     if (tool === 'pen') {
       const lastObj = objects[objects.length - 1]
       if (lastObj?.type === 'pen') {
-        updateObject(lastObj.id, {
-          points: [...(lastObj.points || []), pos2.x, pos2.y]
-        })
-        // 최종 저장은 마우스 업에서
+        updateObject(lastObj.id, { points: [...(lastObj.points || []), pos.x, pos.y] })
       }
     }
   }
 
   const handleMouseUp = () => {
     if (!isDrawing || !startPos) return
-    const pos = stageRef.current?.getPointerPosition()
-    if (!pos) {
-      setIsDrawing(false)
-      return
-    }
+    const pos = getRelativePos()
+    if (!pos) { setIsDrawing(false); return }
 
-    const lastObj = objects[objects.length - 1]
-
-    if (tool === 'pen' && lastObj?.type === 'pen') {
-      // 펜 그리기 완료 - 소켓으로 전송
-      socketRef.current?.emit('draw', { boardId, object: lastObj })
-    } else if (tool === 'rectangle') {
-      const newObj = {
+    if (tool === 'rectangle') {
+      addObject({
         type: 'rectangle',
-        x: Math.min(startPos.x, pos.x),
-        y: Math.min(startPos.y, pos.y),
-        width: Math.abs(pos.x - startPos.x),
-        height: Math.abs(pos.y - startPos.y),
-        color,
-        fill: false
-      }
-      addObject(newObj)
-      socketRef.current?.emit('draw', { boardId, object: newObj })
+        x: Math.min(startPos.x, pos.x), y: Math.min(startPos.y, pos.y),
+        width: Math.abs(pos.x - startPos.x), height: Math.abs(pos.y - startPos.y),
+        color
+      })
     } else if (tool === 'circle') {
-      const radius = Math.sqrt(
-        Math.pow(pos.x - startPos.x, 2) + Math.pow(pos.y - startPos.y, 2)
-      ) / 2
-      const newObj = {
-        type: 'circle',
-        x: startPos.x,
-        y: startPos.y,
-        radius,
-        color,
-        fill: false
-      }
-      addObject(newObj)
-      socketRef.current?.emit('draw', { boardId, object: newObj })
+      const radius = Math.sqrt(Math.pow(pos.x - startPos.x, 2) + Math.pow(pos.y - startPos.y, 2)) / 2
+      addObject({ type: 'circle', x: startPos.x, y: startPos.y, radius, color })
     } else if (tool === 'line') {
-      const newObj = {
-        type: 'line',
-        points: [startPos.x, startPos.y, pos.x, pos.y],
-        color,
-        brushSize
-      }
-      addObject(newObj)
-      socketRef.current?.emit('draw', { boardId, object: newObj })
+      addObject({ type: 'line', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
     }
 
     setIsDrawing(false)
     setStartPos(null)
   }
 
-  const handleSave = () => {
-    saveMut.mutate({ objects })
+  // 휠로 확대/축소
+  const handleWheel = (e) => {
+    e.evt.preventDefault()
+    const scaleBy = 1.05
+    const stage = stageRef.current
+    const oldScale = stageScale
+    const pointer = stage.getPointerPosition()
+    const mousePointTo = {
+      x: (pointer.x - stagePos.x) / oldScale,
+      y: (pointer.y - stagePos.y) / oldScale
+    }
+    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy
+    const clamped = Math.max(0.2, Math.min(5, newScale))
+    setStageScale(clamped)
+    setStagePos({
+      x: pointer.x - mousePointTo.x * clamped,
+      y: pointer.y - mousePointTo.y * clamped
+    })
   }
 
+  // 캔버스 좌표 기준으로 편집창 열기
+  const openEditorFor = ({ id, x, y, text, width, fontSize }) => {
+    const stageBox = stageRef.current.container().getBoundingClientRect()
+    setEditingText({
+      id,
+      x: stageBox.left + x * stageScale + stagePos.x,
+      y: stageBox.top + y * stageScale + stagePos.y,
+      value: text || '',
+      width: (width || 200) * stageScale,
+      fontSize: (fontSize || 16) * stageScale
+    })
+  }
+
+  // 텍스트/스티커 더블클릭 → 편집
+  const handleDblClick = (obj) => {
+    openEditorFor({
+      id: obj.id,
+      x: obj.x,
+      y: obj.y,
+      text: obj.text,
+      width: obj.width || 200,
+      fontSize: obj.fontSize || 16
+    })
+  }
+
+  const commitText = () => {
+    if (editingText) {
+      updateObject(editingText.id, { text: editingText.value })
+      setEditingText(null)
+    }
+  }
+
+  const zoom = (dir) => {
+    const newScale = dir === 'in' ? stageScale * 1.2 : stageScale / 1.2
+    setStageScale(Math.max(0.2, Math.min(5, newScale)))
+  }
+
+  const isSelectMode = tool === 'select'
+
   if (isLoading) return <div className="flex items-center justify-center h-screen">로딩 중...</div>
+
+  const registerRef = (id) => (node) => { if (node) shapeRefs.current[id] = node }
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-950">
       {/* 헤더 */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">←</button>
+          <button onClick={() => navigate(-1)} className="text-slate-600 dark:text-slate-400 hover:text-slate-900">←</button>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{boardName}</h1>
-          {/* 활성 사용자 표시 */}
-          <div className="flex items-center gap-2 ml-4">
-            {activeUsers.map(u => (
-              <div key={u.userId} className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 rounded-full">
-                <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                <span className="text-xs font-medium text-blue-900 dark:text-blue-100">{u.userName}</span>
-              </div>
-            ))}
-          </div>
+          <span className="text-xs text-slate-400">{Math.round(stageScale * 100)}%</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleSave} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
-            💾 저장
-          </button>
+          {selectedId && (
+            <button onClick={() => deleteObject(selectedId)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg" title="삭제">
+              <Trash2 size={18} />
+            </button>
+          )}
+          <button onClick={() => zoom('out')} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ZoomOut size={18} /></button>
+          <button onClick={() => zoom('in')} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ZoomIn size={18} /></button>
+          <span className="text-xs px-2 text-slate-400 min-w-[60px] text-center">
+            {saveStatus === 'saving' ? '저장 중…' : saveStatus === 'unsaved' ? '● 미저장' : '✓ 저장됨'}
+          </span>
+          <button onClick={() => saveMut.mutate({ objects })} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">💾 저장</button>
         </div>
       </div>
 
       <div className="flex flex-1 min-h-0">
-        {/* 왼쪽: 도구 바 */}
-        <div className="w-16 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 gap-2">
+        {/* 도구 바 */}
+        <div className="w-16 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 gap-2 overflow-y-auto">
           {TOOLS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTool(t.id)}
-              title={t.label}
+            <button key={t.id} onClick={() => setTool(t.id)} title={t.label}
               className={`w-12 h-12 flex items-center justify-center rounded-lg transition-colors ${
-                tool === t.id
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
+                tool === t.id ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
               <t.icon size={20} />
             </button>
           ))}
-
           <div className="border-t border-slate-200 dark:border-slate-800 my-2 w-10" />
-
-          {/* 색상 선택 */}
           <div className="flex flex-col gap-1">
             {COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                  color === c
-                    ? 'border-slate-900 dark:border-white'
-                    : 'border-transparent hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
-                style={{ backgroundColor: c }}
-              />
+              <button key={c} onClick={() => setColor(c)}
+                className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c ? 'border-slate-900 dark:border-white' : 'border-transparent hover:border-slate-300'}`}
+                style={{ backgroundColor: c }} />
             ))}
           </div>
-
-          {/* 브러시 사이즈 */}
           <div className="border-t border-slate-200 dark:border-slate-800 my-2 w-10" />
           <label className="text-xs text-slate-500 dark:text-slate-400">크기</label>
-          <input
-            type="range"
-            min="1"
-            max="20"
-            value={brushSize}
-            onChange={(e) => setBrushSize(Number(e.target.value))}
-            className="w-10 h-1"
-          />
+          <input type="range" min="1" max="20" value={brushSize} onChange={(e) => setBrushSize(Number(e.target.value))} className="w-10 h-1" />
         </div>
 
-        {/* 중앙: 캔버스 */}
+        {/* 캔버스 */}
         <div className="flex-1 bg-white dark:bg-slate-900 overflow-hidden relative">
           <Stage
             ref={stageRef}
-            width={window.innerWidth - 64}
+            width={window.innerWidth - 80}
             height={window.innerHeight - 80}
+            scaleX={stageScale}
+            scaleY={stageScale}
+            x={stagePos.x}
+            y={stagePos.y}
+            draggable={tool === 'hand'}
+            onDragEnd={(e) => { if (tool === 'hand') setStagePos({ x: e.target.x(), y: e.target.y() }) }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            className="bg-white dark:bg-slate-900"
+            onWheel={handleWheel}
+            style={{ cursor: tool === 'hand' ? 'grab' : tool === 'select' ? 'default' : 'crosshair' }}
           >
             <Layer>
-              {/* 배경 그리드 */}
-              {Array.from({ length: 100 }).map((_, i) => (
-                <Line
-                  key={`v-${i}`}
-                  points={[i * 50, 0, i * 50, window.innerHeight]}
-                  stroke="#e2e8f0"
-                  strokeWidth={0.5}
-                  opacity={0.3}
-                />
-              ))}
-              {Array.from({ length: 100 }).map((_, i) => (
-                <Line
-                  key={`h-${i}`}
-                  points={[0, i * 50, window.innerWidth, i * 50]}
-                  stroke="#e2e8f0"
-                  strokeWidth={0.5}
-                  opacity={0.3}
-                />
-              ))}
-
-              {/* 오브젝트 렌더링 */}
               {objects.map(obj => {
+                const common = {
+                  ref: registerRef(obj.id),
+                  draggable: isSelectMode,
+                  onClick: () => isSelectMode && selectObject(obj.id),
+                  onTap: () => isSelectMode && selectObject(obj.id),
+                  onDragEnd: (e) => updateObject(obj.id, { x: e.target.x(), y: e.target.y() })
+                }
+
                 if (obj.type === 'pen') {
-                  return (
-                    <Line
-                      key={obj.id}
-                      points={obj.points}
-                      stroke={obj.color}
-                      strokeWidth={obj.brushSize}
-                      lineCap="round"
-                      lineJoin="round"
-                      onClick={() => selectObject(obj.id)}
-                    />
-                  )
+                  return <Line key={obj.id} {...common} points={obj.points} stroke={obj.color} strokeWidth={obj.brushSize} lineCap="round" lineJoin="round" />
+                }
+                if (obj.type === 'line') {
+                  return <Line key={obj.id} {...common} points={obj.points} stroke={obj.color} strokeWidth={obj.brushSize} lineCap="round" />
                 }
                 if (obj.type === 'rectangle') {
                   return (
-                    <Rect
-                      key={obj.id}
-                      x={obj.x}
-                      y={obj.y}
-                      width={obj.width}
-                      height={obj.height}
-                      stroke={obj.color}
-                      strokeWidth={2}
-                      fill="none"
-                      onClick={() => selectObject(obj.id)}
-                    />
+                    <Rect key={obj.id} {...common} x={obj.x} y={obj.y} width={obj.width} height={obj.height}
+                      stroke={obj.color} strokeWidth={2} fill="transparent"
+                      onTransformEnd={(e) => {
+                        const node = e.target
+                        const sx = node.scaleX(), sy = node.scaleY()
+                        node.scaleX(1); node.scaleY(1)
+                        updateObject(obj.id, { x: node.x(), y: node.y(), width: Math.max(10, node.width() * sx), height: Math.max(10, node.height() * sy) })
+                      }} />
                   )
                 }
                 if (obj.type === 'circle') {
                   return (
-                    <Circle
-                      key={obj.id}
-                      x={obj.x}
-                      y={obj.y}
-                      radius={obj.radius}
-                      stroke={obj.color}
-                      strokeWidth={2}
-                      fill="none"
-                      onClick={() => selectObject(obj.id)}
-                    />
-                  )
-                }
-                if (obj.type === 'line') {
-                  return (
-                    <Line
-                      key={obj.id}
-                      points={obj.points}
-                      stroke={obj.color}
-                      strokeWidth={obj.brushSize}
-                      lineCap="round"
-                      onClick={() => selectObject(obj.id)}
-                    />
+                    <Circle key={obj.id} {...common} x={obj.x} y={obj.y} radius={obj.radius}
+                      stroke={obj.color} strokeWidth={2} fill="transparent"
+                      onTransformEnd={(e) => {
+                        const node = e.target
+                        const sx = node.scaleX()
+                        node.scaleX(1); node.scaleY(1)
+                        updateObject(obj.id, { x: node.x(), y: node.y(), radius: Math.max(5, obj.radius * sx) })
+                      }} />
                   )
                 }
                 if (obj.type === 'text') {
                   return (
-                    <Text
-                      key={obj.id}
-                      x={obj.x}
-                      y={obj.y}
-                      text={obj.text}
-                      fontSize={obj.fontSize}
-                      fill={obj.color}
-                      onClick={() => selectObject(obj.id)}
-                    />
+                    <Text key={obj.id} {...common} x={obj.x} y={obj.y} text={obj.text} fontSize={obj.fontSize} fill={obj.color}
+                      onDblClick={() => handleDblClick(obj)} onDblTap={() => handleDblClick(obj)}
+                      onTransformEnd={(e) => {
+                        const node = e.target
+                        const sx = node.scaleX()
+                        node.scaleX(1); node.scaleY(1)
+                        updateObject(obj.id, { x: node.x(), y: node.y(), fontSize: Math.max(8, obj.fontSize * sx) })
+                      }} />
                   )
                 }
                 if (obj.type === 'sticky') {
                   return (
-                    <g key={obj.id}>
-                      <Rect
-                        x={obj.x}
-                        y={obj.y}
-                        width={obj.width}
-                        height={obj.height}
-                        fill={obj.color}
-                        shadowBlur={4}
-                        shadowOffsetY={2}
-                        onClick={() => selectObject(obj.id)}
-                      />
-                      <Text
-                        x={obj.x + 8}
-                        y={obj.y + 8}
-                        text={obj.text}
-                        fontSize={13}
-                        width={obj.width - 16}
-                        fill="#1f2937"
-                        wrap="word"
-                      />
-                    </g>
+                    <Group key={obj.id} {...common} x={obj.x} y={obj.y}
+                      onDblClick={() => handleDblClick(obj)} onDblTap={() => handleDblClick(obj)}
+                      onTransformEnd={(e) => {
+                        const node = e.target
+                        const sx = node.scaleX(), sy = node.scaleY()
+                        node.scaleX(1); node.scaleY(1)
+                        updateObject(obj.id, { x: node.x(), y: node.y(), width: Math.max(60, obj.width * sx), height: Math.max(60, obj.height * sy) })
+                      }}>
+                      <Rect width={obj.width} height={obj.height} fill={obj.color} cornerRadius={4} shadowBlur={6} shadowOffsetY={3} shadowOpacity={0.2} />
+                      <Text x={10} y={10} text={obj.text} fontSize={14} width={obj.width - 20} height={obj.height - 20} fill="#1f2937" wrap="word" />
+                    </Group>
+                  )
+                }
+                if (obj.type === 'image') {
+                  return (
+                    <URLImage key={obj.id} obj={obj} draggable={isSelectMode}
+                      setRef={(node) => { if (node) shapeRefs.current[obj.id] = node }}
+                      onSelect={() => isSelectMode && selectObject(obj.id)}
+                      onChange={(updates) => updateObject(obj.id, updates)} />
                   )
                 }
                 return null
               })}
+
+              {/* 크기 조정 핸들 */}
+              {isSelectMode && (
+                <Transformer
+                  ref={trRef}
+                  boundBoxFunc={(oldBox, newBox) => (newBox.width < 10 || newBox.height < 10 ? oldBox : newBox)}
+                />
+              )}
             </Layer>
           </Stage>
 
-          {/* 원격 커서 표시 */}
-          {Object.entries(remoteCursors).map(([userId, cursor]) => (
-            <div
-              key={userId}
-              className="absolute pointer-events-none"
-              style={{ left: cursor.x, top: cursor.y }}
-            >
-              <div className="relative">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={cursor.color} strokeWidth="2">
-                  <path d="M3 3L3 19L8 15L13 19L13 3Z" fill={cursor.color} />
-                </svg>
-                <div className="absolute left-6 top-0 text-xs bg-slate-800 text-white px-2 py-1 rounded whitespace-nowrap">
-                  {cursor.userName}
-                </div>
-              </div>
-            </div>
-          ))}
+          {/* 텍스트 편집 오버레이 */}
+          {editingText && (
+            <textarea
+              autoFocus
+              value={editingText.value}
+              onChange={(e) => setEditingText({ ...editingText, value: e.target.value })}
+              onBlur={commitText}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) commitText()
+                if (e.key === 'Escape') setEditingText(null)
+              }}
+              style={{
+                position: 'fixed',
+                left: editingText.x + 10,
+                top: editingText.y + 10,
+                width: Math.max(editingText.width || 200, 200),
+                minWidth: '200px',
+                minHeight: '80px',
+                height: 'auto',
+                fontSize: Math.max(editingText.fontSize || 14, 14),
+                lineHeight: '1.4',
+                padding: '6px',
+                border: '2px solid #3b82f6',
+                borderRadius: '4px',
+                outline: 'none',
+                resize: 'both',
+                zIndex: 1000,
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                background: '#ffffff',
+                color: '#000000'
+              }}
+            />
+          )}
         </div>
+      </div>
+
+      {/* 하단 힌트 */}
+      <div className="px-6 py-2 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-400 flex gap-4">
+        <span>🖱️ 선택 도구로 이동·크기조정</span>
+        <span>✋ 손 도구로 화면 이동</span>
+        <span>🖼️ Ctrl+V 로 이미지 붙여넣기</span>
+        <span>✏️ 텍스트/스티커 더블클릭 편집</span>
+        <span>🗑️ Delete 키로 삭제</span>
+        <span>🔍 휠로 확대/축소</span>
       </div>
     </div>
   )

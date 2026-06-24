@@ -95,7 +95,7 @@ export default function Dashboard() {
   const { onSelectTask } = useOutletContext()
 
   const createWhiteboardMut = useMutation({
-    mutationFn: () => api.post('/whiteboards', { name: `${user?.name}의 화이트보드` }),
+    mutationFn: () => api.post('/whiteboards', { name: `${user?.name}의 화이트보드` }).then(r => r.data),
     onSuccess: (data) => {
       toast.success('화이트보드가 생성되었습니다')
       navigate(`/whiteboard/${data.id}`)
