@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
-import { Stage, Layer, Line, Rect, Circle, Text, Group, Image as KonvaImage, Transformer } from 'react-konva'
+import { Stage, Layer, Line, Rect, Circle, Text, Group, Image as KonvaImage, Transformer, Arrow } from 'react-konva'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, StickyNote, Trash2, ZoomIn, ZoomOut, Undo2, Redo2, Copy, BringToFront, SendToBack } from 'lucide-react'
+import { MousePointer2, Hand, Pen, Square, Circle as CircleIcon, Type, StickyNote, Trash2, ZoomIn, ZoomOut, Undo2, Redo2, Copy, BringToFront, SendToBack, ArrowUpRight, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { v4 as uuid } from 'uuid'
 import { io } from 'socket.io-client'
@@ -17,8 +17,10 @@ const TOOLS = [
   { id: 'rectangle', icon: Square, label: '사각형' },
   { id: 'circle', icon: CircleIcon, label: '원' },
   { id: 'line', icon: Pen, label: '선' },
+  { id: 'arrow', icon: ArrowUpRight, label: '화살표' },
   { id: 'text', icon: Type, label: '텍스트' },
   { id: 'sticky', icon: StickyNote, label: '스티커' },
+  { id: 'comment', icon: MessageCircle, label: '댓글' },
 ]
 
 const COLORS = ['#000000', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
@@ -88,6 +90,7 @@ export default function Whiteboard() {
   const [editingText, setEditingText] = useState(null) // { id, x, y, value }
   const [activeUsers, setActiveUsers] = useState([])
   const [remoteCursors, setRemoteCursors] = useState({})
+  const [commentPopup, setCommentPopup] = useState(null) // { id, x, y, text, author, editing }
 
   const {
     boardName, objects, tool, color, brushSize, selectedId,
@@ -323,6 +326,15 @@ export default function Whiteboard() {
       return
     }
 
+    if (tool === 'comment') {
+      snapshot()
+      const id = uuid()
+      addObject({ id, type: 'comment', x: pos.x, y: pos.y, text: '', author: user?.name || '익명' })
+      setTool('select')
+      setTimeout(() => setCommentPopup({ id, x: pos.x, y: pos.y, text: '', author: user?.name || '익명', editing: true }), 50)
+      return
+    }
+
     setIsDrawing(true)
     setStartPos(pos)
     snapshot() // 그리기 시작 전 상태 저장 (pen/rect/circle/line 공통)
@@ -371,6 +383,8 @@ export default function Whiteboard() {
       addObject({ type: 'circle', x: startPos.x, y: startPos.y, radius, color })
     } else if (tool === 'line') {
       addObject({ type: 'line', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
+    } else if (tool === 'arrow') {
+      addObject({ type: 'arrow', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
     }
 
     setIsDrawing(false)
@@ -545,6 +559,22 @@ export default function Whiteboard() {
                 if (obj.type === 'line') {
                   return <Line key={obj.id} {...common} points={obj.points} stroke={obj.color} strokeWidth={obj.brushSize} lineCap="round" />
                 }
+                if (obj.type === 'arrow') {
+                  return (
+                    <Arrow key={obj.id} {...common} points={obj.points} stroke={obj.color} fill={obj.color}
+                      strokeWidth={obj.brushSize || 3} pointerLength={12} pointerWidth={12} lineCap="round" />
+                  )
+                }
+                if (obj.type === 'comment') {
+                  return (
+                    <Group key={obj.id} {...common} x={obj.x} y={obj.y}
+                      onClick={() => { if (isSelectMode) { selectObject(obj.id); setCommentPopup({ ...obj, editing: false }) } }}
+                      onTap={() => { if (isSelectMode) { selectObject(obj.id); setCommentPopup({ ...obj, editing: false }) } }}>
+                      <Circle radius={14} fill="#3b82f6" shadowBlur={4} shadowOffsetY={2} shadowOpacity={0.3} />
+                      <Text x={-14} y={-8} width={28} align="center" text="💬" fontSize={15} />
+                    </Group>
+                  )
+                }
                 if (obj.type === 'rectangle') {
                   return (
                     <Rect key={obj.id} {...common} x={obj.x} y={obj.y} width={obj.width} height={obj.height}
@@ -630,6 +660,33 @@ export default function Whiteboard() {
               </span>
             </div>
           ))}
+
+          {/* 댓글 팝업 */}
+          {commentPopup && (
+            <div className="absolute z-50 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-3"
+              style={{ left: commentPopup.x * stageScale + stagePos.x + 20, top: commentPopup.y * stageScale + stagePos.y }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-blue-600">💬 {commentPopup.author}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => { snapshot(); deleteObject(commentPopup.id); setCommentPopup(null) }}
+                    className="text-slate-400 hover:text-red-600 text-xs">삭제</button>
+                  <button onClick={() => setCommentPopup(null)} className="text-slate-400 hover:text-slate-700 text-xs">✕</button>
+                </div>
+              </div>
+              {commentPopup.editing ? (
+                <textarea autoFocus value={commentPopup.text}
+                  onChange={(e) => setCommentPopup({ ...commentPopup, text: e.target.value })}
+                  onBlur={() => { updateObject(commentPopup.id, { text: commentPopup.text }); setCommentPopup({ ...commentPopup, editing: false }) }}
+                  placeholder="댓글을 입력하세요..."
+                  className="w-full h-20 text-sm p-2 border border-slate-200 dark:border-slate-600 rounded-lg outline-none resize-none dark:bg-slate-900 dark:text-white" />
+              ) : (
+                <div onClick={() => setCommentPopup({ ...commentPopup, editing: true })}
+                  className="text-sm text-slate-700 dark:text-slate-200 min-h-[40px] cursor-text whitespace-pre-wrap">
+                  {commentPopup.text || <span className="text-slate-400">댓글을 입력하려면 클릭...</span>}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 텍스트 편집 오버레이 */}
           {editingText && (
