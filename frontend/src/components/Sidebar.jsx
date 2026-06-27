@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool } from 'lucide-react'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server } from 'lucide-react'
 import useAuth from '../store/auth'
 import { useTheme } from '../store/theme'
 import api from '../api/client'
@@ -19,6 +19,7 @@ const TEAM_NAV = [
 const MY_NAV = [
   { to: '/emails',  icon: Mail, label: '내 이메일' },
   { to: '/worklog', icon: Clock, label: '업무일지'  },
+  { to: '/system-links', icon: Server, label: '시스템 바로가기' },
 ]
 
 export default memo(function Sidebar({ onSelectTask }) {
