@@ -2,9 +2,70 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { CheckSquare, Bold, List, Heading, Quote, Eye, Pencil } from 'lucide-react'
+import { CheckSquare, Bold, List, Heading, Quote, Eye, Pencil, Calendar, PenSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../api/client'
 import dayjs from 'dayjs'
+
+// 월간 달력 뷰
+function CalendarView({ onPickDate }) {
+  const [month, setMonth] = useState(dayjs().startOf('month'))
+  const start = month.startOf('month')
+  const end = month.endOf('month')
+
+  const { data: logs = [] } = useQuery({
+    queryKey: ['worklog-month', month.format('YYYY-MM')],
+    queryFn: () => api.get(`/work-logs?from_date=${start.format('YYYY-MM-DD')}&to_date=${end.format('YYYY-MM-DD')}`).then(r => r.data)
+  })
+  const logMap = Object.fromEntries(logs.map(l => [l.log_date, l]))
+
+  const firstDow = start.day() // 0=일
+  const daysInMonth = end.date()
+  const cells = []
+  for (let i = 0; i < firstDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(start.date(d))
+
+  return (
+    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setMonth(m => m.subtract(1, 'month'))} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg"><ChevronLeft size={18} /></button>
+        <h2 className="text-lg font-bold text-slate-900">{month.format('YYYY년 M월')}</h2>
+        <button onClick={() => setMonth(m => m.add(1, 'month'))} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg"><ChevronRight size={18} /></button>
+      </div>
+      <div className="grid grid-cols-7 gap-1.5">
+        {['일', '월', '화', '수', '목', '금', '토'].map((d, i) => (
+          <div key={d} className={`text-center text-xs font-semibold py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-slate-400'}`}>{d}</div>
+        ))}
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} />
+          const ds = day.format('YYYY-MM-DD')
+          const log = logMap[ds]
+          const isToday = ds === dayjs().format('YYYY-MM-DD')
+          return (
+            <button key={i} onClick={() => onPickDate(ds)}
+              className={`aspect-square rounded-xl border p-1.5 flex flex-col items-start transition-colors text-left ${
+                log ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'border-slate-100 hover:bg-slate-50'
+              } ${isToday ? 'ring-2 ring-blue-400' : ''}`}>
+              <span className={`text-xs font-medium ${log ? 'text-blue-700' : 'text-slate-500'}`}>{day.date()}</span>
+              {log && (
+                <div className="mt-auto w-full">
+                  {log.content && <div className="text-[9px] text-slate-500 truncate leading-tight">{log.content.replace(/[#*>\-\[\]]/g, '').slice(0, 12)}</div>}
+                  <div className="flex gap-0.5 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    {log.issues && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+                  </div>
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex gap-4 mt-4 text-xs text-slate-400">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" /> 작성됨</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> 이슈 있음</span>
+      </div>
+    </div>
+  )
+}
 
 // 마크다운 입력 필드 (편집/미리보기 토글 + 빠른 삽입)
 function MarkdownField({ label, value, onChange, rows, placeholder }) {
@@ -80,6 +141,7 @@ export default function WorkLog() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'))
   const [form, setForm] = useState({ content: '', issues: '', next_plan: '' })
   const [saved, setSaved] = useState(false)
+  const [view, setView] = useState('edit') // 'edit' | 'calendar'
 
   const { data: recentLogs = [] } = useQuery({
     queryKey: ['recent-logs'],
@@ -115,10 +177,22 @@ export default function WorkLog() {
           <h1 className="text-2xl font-bold text-slate-900">업무일지</h1>
           <p className="text-sm text-slate-400 mt-0.5">{dayjs(date).format('YYYY년 MM월 DD일 dddd')} · 마크다운 지원</p>
         </div>
-        <input type="date" value={date} onChange={e => handleDateChange(e.target.value)}
-          className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        <div className="flex items-center gap-2">
+          {/* 뷰 전환 */}
+          <div className="flex bg-slate-100 rounded-lg p-0.5">
+            <button onClick={() => setView('edit')} className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${view === 'edit' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><PenSquare size={14} /> 작성</button>
+            <button onClick={() => setView('calendar')} className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${view === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><Calendar size={14} /> 달력</button>
+          </div>
+          {view === 'edit' && (
+            <input type="date" value={date} onChange={e => handleDateChange(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          )}
+        </div>
       </div>
 
+      {view === 'calendar' ? (
+        <CalendarView onPickDate={(d) => { handleDateChange(d); setView('edit') }} />
+      ) : (
       <div className="grid grid-cols-3 gap-5">
         <div className="col-span-2 space-y-4">
           <MarkdownField label="오늘 완료한 업무" value={form.content} onChange={setField('content')} rows={7} placeholder={'- [x] 완료한 일\n- [ ] 진행 중인 일\n**중요** 표시도 가능'} />
@@ -159,6 +233,7 @@ export default function WorkLog() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }
