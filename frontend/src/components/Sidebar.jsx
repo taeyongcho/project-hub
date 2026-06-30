@@ -62,16 +62,16 @@ export default memo(function Sidebar({ onSelectTask }) {
   const navLinkCls = ({ isActive }) =>
     `flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
       isActive
-        ? 'bg-blue-50 text-blue-700'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
+        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
     }`
 
   return (
     <>
-      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 relative">
+      <aside className="w-56 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full flex-shrink-0 relative">
         {/* 로고 */}
-        <div className="px-4 py-3.5 border-b border-slate-100">
-          <div className="text-base font-bold text-slate-900 tracking-tight">Project Hub</div>
+        <div className="px-4 py-3.5 border-b border-slate-100 dark:border-slate-800">
+          <div className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Project Hub</div>
           <div className="text-xs text-slate-400 mt-0.5 font-medium">{user?.name}</div>
         </div>
 
@@ -79,7 +79,7 @@ export default memo(function Sidebar({ onSelectTask }) {
         <div className="px-3 pt-3 pb-1">
           <button
             onClick={() => setShowSearch(true)}
-            className="w-full flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors group"
+            className="w-full flex items-center gap-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors group"
           >
             <Search size={18} className="text-slate-400" />
             <span className="flex-1 text-left">검색...</span>
@@ -158,12 +158,12 @@ export default memo(function Sidebar({ onSelectTask }) {
         </nav>
 
         {/* 하단 */}
-        <div className="border-t border-slate-100">
+        <div className="border-t border-slate-100 dark:border-slate-800">
           <div className="relative mx-2 my-1">
             <button
               onClick={() => setShowNotif(s => !s)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                showNotif ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                showNotif ? 'bg-blue-50 text-blue-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               <Bell size={18} />
@@ -186,7 +186,7 @@ export default memo(function Sidebar({ onSelectTask }) {
             to="/email-settings"
             className={({ isActive }) =>
               `flex items-center gap-3 mx-2 mb-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`
             }
           >
@@ -195,14 +195,14 @@ export default memo(function Sidebar({ onSelectTask }) {
           </NavLink>
           <button
             onClick={toggleTheme}
-            className="w-full flex items-center gap-3 mx-2 mb-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+            className="w-full flex items-center gap-3 mx-2 mb-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
             <span>{isDark ? '라이트 모드' : '다크 모드'}</span>
           </button>
           <button
             onClick={() => { logout(); navigate('/login') }}
-            className="w-full flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+            className="w-full flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             <LogOut size={18} />
             <span>로그아웃</span>

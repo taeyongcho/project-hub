@@ -75,7 +75,7 @@ export default function SystemLinks() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Server size={24} /> 시스템 바로가기
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">테스트·개발 환경 URL을 모아두고 바로 접속하세요</p>
@@ -83,7 +83,7 @@ export default function SystemLinks() {
         <div className="flex items-center gap-2">
           {links.length > 0 && (
             <button onClick={checkAll}
-              className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-medium transition-colors text-sm">
+              className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800 text-slate-600 rounded-xl font-medium transition-colors text-sm">
               상태 확인
             </button>
           )}
@@ -113,7 +113,7 @@ export default function SystemLinks() {
                 {items.map(l => {
                   const env = ENV_BADGE[l.environment] || ENV_BADGE.test
                   return (
-                    <div key={l.id} className="group bg-white border border-slate-200 rounded-2xl p-4 hover:shadow-md hover:border-blue-300 transition-all">
+                    <div key={l.id} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 hover:shadow-md hover:border-blue-300 transition-all">
                       <div className="flex items-start justify-between">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -131,7 +131,7 @@ export default function SystemLinks() {
                                   className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
                               )
                             })()}
-                            <h3 className="font-semibold text-slate-900 truncate">{l.name}</h3>
+                            <h3 className="font-semibold text-slate-900 dark:text-white truncate">{l.name}</h3>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${env.cls}`}>{env.label}</span>
                           </div>
                           <a href={l.url} target="_blank" rel="noopener noreferrer"
@@ -158,9 +158,9 @@ export default function SystemLinks() {
       {/* 등록/수정 모달 */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-slate-900">{modal.id ? '시스템 수정' : '시스템 등록'}</h2>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{modal.id ? '시스템 수정' : '시스템 등록'}</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
             </div>
             <div className="space-y-3">
@@ -170,7 +170,7 @@ export default function SystemLinks() {
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">연결 프로젝트 (선택)</label>
                 <select value={modal.project_id || ''} onChange={e => setModal({ ...modal, project_id: e.target.value ? Number(e.target.value) : null })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                  className="w-full border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">없음</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
@@ -180,12 +180,12 @@ export default function SystemLinks() {
                   <label className="block text-xs font-medium text-slate-500 mb-1">분류</label>
                   <input value={modal.category} onChange={e => setModal({ ...modal, category: e.target.value })}
                     placeholder="백엔드 / 프론트 / DB…"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">환경</label>
                   <select value={modal.environment} onChange={e => setModal({ ...modal, environment: e.target.value })}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    className="w-full border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="dev">개발</option>
                     <option value="test">테스트</option>
                     <option value="staging">스테이징</option>
@@ -211,7 +211,7 @@ function Field({ label, value, onChange, placeholder, mono }) {
     <div>
       <label className="block text-xs font-medium text-slate-500 mb-1">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className={`w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${mono ? 'font-mono' : ''}`} />
+        className={`w-full border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${mono ? 'font-mono' : ''}`} />
     </div>
   )
 }

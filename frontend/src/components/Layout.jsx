@@ -7,9 +7,9 @@ export default function Layout() {
   const [selectedTaskId, setSelectedTaskId] = useState(null)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Sidebar onSelectTask={setSelectedTaskId} />
-      <main className="flex-1 overflow-y-auto bg-slate-50">
+      <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
         <Outlet context={{ onSelectTask: setSelectedTaskId }} />
       </main>
       {selectedTaskId && (

@@ -35,7 +35,7 @@ export default function Reports() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">보고서</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">보고서</h1>
         {user?.role === 'admin' && (
           <div className="flex gap-2">
             <button onClick={() => genMut.mutate('weekly')} disabled={genMut.isPending}
@@ -54,7 +54,7 @@ export default function Reports() {
         {[['weekly','주간보고'],['monthly','월간보고']].map(([v, l]) => (
           <button key={v} onClick={() => { setTab(v); setSelected(null) }}
             className={`text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${
-              tab === v ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              tab === v ? 'bg-slate-900 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-50'
             }`}>
             {l}
           </button>
@@ -83,21 +83,21 @@ export default function Reports() {
 
         <div className="col-span-3">
           {displayReport ? (
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-card">
-              <div className="flex items-center justify-between mb-5 pb-5 border-b border-slate-100">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-card">
+              <div className="flex items-center justify-between mb-5 pb-5 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                     {displayReport.type === 'weekly' ? '주간' : '월간'}업무보고
                   </h2>
                   <p className="text-sm text-slate-500 mt-0.5">{displayReport.period}</p>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => exportFile(displayReport.id, 'pdf')}
-                    className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                    className="text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800 text-slate-600 hover:text-slate-900 dark:text-white px-3 py-1.5 rounded-lg transition-colors font-medium">
                     PDF 저장
                   </button>
                   <button onClick={() => exportFile(displayReport.id, 'docx')}
-                    className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                    className="text-xs border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800 text-slate-600 hover:text-slate-900 dark:text-white px-3 py-1.5 rounded-lg transition-colors font-medium">
                     Word 저장
                   </button>
                 </div>
@@ -109,7 +109,7 @@ export default function Reports() {
               }
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 flex items-center justify-center h-64 text-slate-400">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-center h-64 text-slate-400">
               <div className="text-center">
                 <div className="text-4xl mb-3">📊</div>
                 <div>보고서를 선택하거나 새로 생성하세요</div>
@@ -130,13 +130,13 @@ function WeeklyContent({ content }) {
         <StatBox label="완료 태스크" value={content.done_tasks} color="text-emerald-600" bg="bg-emerald-50" />
         <StatBox label="지연 태스크" value={content.overdue_tasks}
           color={content.overdue_tasks > 0 ? 'text-red-600' : 'text-slate-400'}
-          bg={content.overdue_tasks > 0 ? 'bg-red-50' : 'bg-slate-50'} />
+          bg={content.overdue_tasks > 0 ? 'bg-red-50' : 'bg-slate-50 dark:bg-slate-800'} />
         <StatBox label="처리 이메일" value={content.emails_processed} color="text-blue-600" bg="bg-blue-50" />
       </div>
       <Section title="완료 업무" items={content.completed_work} emptyText="기록된 완료 업무 없음" />
       <Section title="이슈 / 리스크" items={content.issues} emptyText="이슈 없음" />
       <Section title="다음 업무 계획" items={content.next_plans} emptyText="기록된 계획 없음" />
-      <div className="text-xs text-slate-400 pt-3 border-t border-slate-100">
+      <div className="text-xs text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
         생성: {dayjs(content.generated_at).format('YYYY-MM-DD HH:mm')} · 기간: {content.period_start} ~ {content.period_end}
       </div>
     </div>
@@ -174,7 +174,7 @@ function MonthlyContent({ content }) {
           })}
         </div>
       </div>
-      <div className="text-xs text-slate-400 pt-3 border-t border-slate-100">
+      <div className="text-xs text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
         기간: {content.period} · 생성: {dayjs(content.generated_at).format('YYYY-MM-DD HH:mm')}
       </div>
     </div>
@@ -198,7 +198,7 @@ function Section({ title, items, emptyText }) {
         ? <p className="text-slate-400 text-sm">{emptyText}</p>
         : <div className="space-y-3">
           {items.map((item, i) => (
-            <div key={i} className="markdown-body text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+            <div key={i} className="markdown-body text-sm text-slate-700 bg-slate-50 dark:bg-slate-800 rounded-xl px-4 py-3 border border-slate-100 dark:border-slate-800">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{item}</ReactMarkdown>
             </div>
           ))}
