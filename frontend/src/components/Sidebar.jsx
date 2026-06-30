@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare } from 'lucide-react'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare, FlaskConical } from 'lucide-react'
 import useAuth from '../store/auth'
 import { useTheme } from '../store/theme'
 import api from '../api/client'
@@ -26,9 +26,14 @@ function openChatPopup() {
 }
 
 const MY_NAV = [
-  { to: '/emails',  icon: Mail, label: '내 이메일' },
   { to: '/worklog', icon: Clock, label: '업무일지'  },
   { to: '/system-links', icon: Server, label: '시스템 바로가기' },
+]
+
+// 실험실: 아직 검증 중이거나 잘 안 쓸 수도 있는 기능 모음
+const LAB_NAV = [
+  { to: '/emails', icon: Mail, label: '이메일', badge: 'overdue' },
+  { to: '/email-settings', icon: Settings, label: '이메일 계정 설정' },
 ]
 
 export default memo(function Sidebar({ onSelectTask, onNavigate }) {
@@ -167,6 +172,22 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
             </NavLink>
           ))}
 
+          {/* 실험실 */}
+          <div className="px-5 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold flex items-center gap-1.5">
+            <FlaskConical size={11} /> 실험실
+          </div>
+          {LAB_NAV.map(item => (
+            <NavLink key={item.to} to={item.to} className={navLinkCls}>
+              <item.icon size={18} />
+              <span>{item.label}</span>
+              {item.badge === 'overdue' && overdue?.length > 0 && (
+                <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                  {overdue.length}
+                </span>
+              )}
+            </NavLink>
+          ))}
+
           {/* 관리자 */}
           {user?.role === 'admin' && (
             <>
@@ -209,17 +230,6 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
             )}
           </div>
 
-          <NavLink
-            to="/email-settings"
-            className={({ isActive }) =>
-              `flex items-center gap-3 mx-2 mb-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`
-            }
-          >
-            <Settings size={18} />
-            <span>이메일 계정 설정</span>
-          </NavLink>
           <button
             onClick={toggleTheme}
             className="w-full flex items-center gap-3 mx-2 mb-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
