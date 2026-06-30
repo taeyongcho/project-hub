@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -11,6 +11,26 @@ function dmChannel(a, b) {
   return `dm:${lo}-${hi}`
 }
 
+// 이모지 카테고리
+const EMOJI_GROUPS = {
+  '표정': ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','😆','🙂','😉','😋','😜','🤩','🥳','😏','😢','😭','😤','😡','🥺','😴','🤗','🤐','😬','🙄','😱','🤯'],
+  '제스처': ['👍','👎','👏','🙌','👋','🤙','✌️','🤞','👌','🤝','🙏','💪','👀','🫡','🤲','✋','🖐️','🤟'],
+  '하트/기호': ['❤️','🧡','💛','💚','💙','💜','🖤','💯','🔥','✨','⭐','🎉','🎊','💡','✅','❌','❗','❓','⚡','💢','💤','💬'],
+  '사물/음식': ['☕','🍕','🍔','🍻','🍺','🎂','🍰','🍩','🍙','🍜','🎁','💻','📱','📌','📎','🗂️','📈','📊','🚀','⏰'],
+}
+
+// 큰 스티커 (이모지만 있는 메시지는 크게 = 스티커)
+const STICKERS = ['🎉','👍','❤️','😂','🔥','💯','🙏','👏','🚀','✅','💪','🥳','😎','🤝','☕','⭐','💡','😴','🎊','👀','🫡','🆗','💢','😭']
+
+// 메시지가 이모지로만 이루어졌는지(=스티커) 판별
+function isEmojiOnly(s) {
+  if (!s) return false
+  const stripped = s.replace(/\s/g, '')
+  if (!stripped) return false
+  // 이모지/변형선택자/ZWJ만 남는지
+  return /^(\p{Extended_Pictographic}|️|‍)+$/u.test(stripped) && [...stripped].length <= 6
+}
+
 export default function Chat() {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -18,6 +38,7 @@ export default function Chat() {
   const [channelLabel, setChannelLabel] = useState('전체 팀')
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
+  const [picker, setPicker] = useState(null) // null | 'emoji' | 'sticker'
   const socketRef = useRef(null)
   const bottomRef = useRef(null)
   const channelRef = useRef(channel)
@@ -53,13 +74,23 @@ export default function Chat() {
   // 새 메시지 시 스크롤 하단으로
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
+  const sendContent = async (content) => {
+    if (!content.trim()) return
+    const msg = await api.post('/chat/messages', { channel, content }).then(r => r.data)
+    setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+  }
+
   const send = async () => {
     const content = text.trim()
     if (!content) return
     setText('')
-    const msg = await api.post('/chat/messages', { channel, content }).then(r => r.data)
-    // 본인 화면 즉시 반영 (브로드캐스트는 skip_sid 없이 오므로 중복 가능 → id로 정리)
-    setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+    setPicker(null)
+    await sendContent(content)
+  }
+
+  const sendSticker = async (emoji) => {
+    setPicker(null)
+    await sendContent(emoji)
   }
 
   const pick = (ch, label) => { setChannel(ch); setChannelLabel(label) }
@@ -113,9 +144,13 @@ export default function Chat() {
               <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[70%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
                   {showName && !mine && <span className="text-xs text-slate-500 mb-0.5 ml-1">{m.sender_name}</span>}
-                  <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
-                    mine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
-                  }`}>{m.content}</div>
+                  {isEmojiOnly(m.content) ? (
+                    <div className="text-5xl leading-none px-1 py-1 select-none">{m.content}</div>
+                  ) : (
+                    <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
+                      mine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
+                    }`}>{m.content}</div>
+                  )}
                   <span className="text-[10px] text-slate-400 mt-0.5 mx-1">{dayjs(m.created_at).format('HH:mm')}</span>
                 </div>
               </div>
@@ -125,10 +160,48 @@ export default function Chat() {
         </div>
 
         {/* 입력 */}
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative">
+          {/* 이모지 피커 */}
+          {picker === 'emoji' && (
+            <div className="absolute bottom-full left-6 mb-2 w-80 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-3 z-50">
+              {Object.entries(EMOJI_GROUPS).map(([group, emojis]) => (
+                <div key={group} className="mb-2">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">{group}</div>
+                  <div className="grid grid-cols-8 gap-0.5">
+                    {emojis.map((e, i) => (
+                      <button key={i} onClick={() => { setText(t => t + e) }}
+                        className="text-xl p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">{e}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* 스티커 피커 */}
+          {picker === 'sticker' && (
+            <div className="absolute bottom-full left-6 mb-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-3 z-50">
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">스티커 (클릭하면 바로 전송)</div>
+              <div className="grid grid-cols-6 gap-1">
+                {STICKERS.map((s, i) => (
+                  <button key={i} onClick={() => sendSticker(s)}
+                    className="text-3xl p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
+            <button onClick={() => setPicker(p => p === 'emoji' ? null : 'emoji')}
+              className={`p-2.5 rounded-xl transition-colors ${picker === 'emoji' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`} title="이모지">
+              <Smile size={18} />
+            </button>
+            <button onClick={() => setPicker(p => p === 'sticker' ? null : 'sticker')}
+              className={`p-2.5 rounded-xl transition-colors ${picker === 'sticker' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`} title="스티커">
+              <Sticker size={18} />
+            </button>
             <input value={text} onChange={e => setText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+              onFocus={() => setPicker(null)}
               placeholder={`${channelLabel}에 메시지 보내기...`}
               className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
             <button onClick={send} disabled={!text.trim()}
