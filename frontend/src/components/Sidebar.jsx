@@ -17,7 +17,7 @@ const TEAM_NAV = [
 ]
 
 // 채팅은 별도 팝업 창으로 (메인 화면을 가리지 않음)
-const CHAT_W = 460, CHAT_H = 680
+const CHAT_W = 680, CHAT_H = 680
 function openChatPopup() {
   const left = Math.max(0, Math.round((window.screen.width - CHAT_W) / 2))
   const top = Math.max(0, Math.round((window.screen.height - CHAT_H) / 2))
