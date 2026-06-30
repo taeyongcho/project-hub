@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI):
         ))
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
+    await _create_ai_user()
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_auto_generate_reports, 'cron', day_of_week=0, hour=9, id='weekly_report')
@@ -84,6 +85,26 @@ async def _create_admin():
         if not await get_user_by_email(db, settings.first_admin_email):
             await create_user(db, "관리자", settings.first_admin_email,
                               hash_password(settings.first_admin_password), "admin")
+
+
+AI_USER_EMAIL = "ai@bot.local"
+
+
+async def _create_ai_user():
+    from app.services.user import get_user_by_email, create_user
+    from app.core.security import hash_password
+    from sqlalchemy import update
+    from app.models.user import User
+    import uuid
+    async with AsyncSessionLocal() as db:
+        existing = await get_user_by_email(db, AI_USER_EMAIL)
+        if not existing:
+            u = await create_user(db, "AI 사원", AI_USER_EMAIL,
+                                   hash_password(uuid.uuid4().hex), "member")
+            await db.execute(update(User).where(User.id == u.id).values(
+                is_active=False, avatar_emoji="🤖", avatar_color="#6366f1"))
+            await db.commit()
+            print("✓ AI 사원 계정 생성됨")
 
 
 async def _get_admin_id():

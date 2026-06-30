@@ -224,6 +224,17 @@ export default function Chat() {
               badge={unread?.channels?.[`group:${g.id}`]} />
           ))}
 
+          {/* AI 사원 */}
+          {channels?.ai_user && (
+            <>
+              <div className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">AI 비서</div>
+              <ChannelItem active={channel === channels.ai_user.channel}
+                onClick={() => pick(channels.ai_user.channel, 'AI 사원')}
+                icon={<Avatar emoji={channels.ai_user.avatar_emoji} color={channels.ai_user.avatar_color} size={20} />}
+                label="AI 사원" badge={unread?.channels?.[channels.ai_user.channel]} />
+            </>
+          )}
+
           {/* DM */}
           <div className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">다이렉트 메시지</div>
           {channels?.users?.map(u => {

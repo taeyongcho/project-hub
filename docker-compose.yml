@@ -47,6 +47,10 @@ services:
       FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL}
       FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3-8b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

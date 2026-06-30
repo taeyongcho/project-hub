@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,11 +43,21 @@ def dm_channel(a: int, b: int) -> str:
     return f"dm:{lo}-{hi}"
 
 
+AI_USER_EMAIL = "ai@bot.local"
+
+
+async def _get_ai_user(db: AsyncSession) -> User | None:
+    return (await db.execute(select(User).where(User.email == AI_USER_EMAIL))).scalar_one_or_none()
+
+
 async def _can_access_channel(channel: str, user: User, db: AsyncSession) -> bool:
     if channel == "team":
         return True
     if channel.startswith("project:"):
         return True  # 팀 전원 접근
+    if channel.startswith("ai:"):
+        # AI 사원 1:1 대화 (본인만)
+        return channel[3:] == str(user.id)
     if channel.startswith("dm:"):
         try:
             return str(user.id) in channel[3:].split("-")
@@ -113,7 +124,10 @@ async def list_channels(db: AsyncSession = Depends(get_db), current_user: User =
     user_rows = await db.execute(select(User).where(User.is_active == True, User.id != current_user.id))
     users = [{"id": u.id, "name": u.name, "role": u.role,
               "avatar_emoji": u.avatar_emoji, "avatar_color": u.avatar_color} for u in user_rows.scalars().all()]
-    return {"projects": projects, "users": users}
+    ai = await _get_ai_user(db)
+    ai_info = {"id": ai.id, "name": ai.name, "avatar_emoji": ai.avatar_emoji,
+               "avatar_color": ai.avatar_color, "channel": f"ai:{current_user.id}"} if ai else None
+    return {"projects": projects, "users": users, "ai_user": ai_info}
 
 
 @router.get("/groups")
@@ -206,7 +220,39 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
     payload = await _serialize(msg, {current_user.id: {"name": current_user.name, "avatar_emoji": current_user.avatar_emoji, "avatar_color": current_user.avatar_color}})
     # 같은 채널 방의 모든 접속자에게 실시간 전송
     await sio.emit("chat_message", payload, room=f"chat_{body.channel}")
+
+    # AI 사원 채널이면 백그라운드로 답변 생성
+    if body.channel.startswith("ai:") and body.content.strip():
+        asyncio.create_task(_ai_reply(body.channel))
+
     return payload
+
+
+async def _ai_reply(channel: str):
+    """로컬 LLM으로 AI 사원 답변 생성 후 브로드캐스트 (별도 세션)"""
+    from app.core.database import AsyncSessionLocal
+    from app.services.llm import generate_reply
+    async with AsyncSessionLocal() as db:
+        ai = await _get_ai_user(db)
+        if not ai:
+            return
+        # 최근 대화 20개를 LLM 컨텍스트로
+        rows = await db.execute(
+            select(ChatMessage).where(ChatMessage.channel == channel)
+            .order_by(ChatMessage.created_at.desc()).limit(20)
+        )
+        msgs = list(reversed(rows.scalars().all()))
+        history = [
+            {"role": "assistant" if m.sender_id == ai.id else "user", "content": m.content}
+            for m in msgs if m.content
+        ]
+        reply_text = await generate_reply(history)
+        ai_msg = ChatMessage(channel=channel, sender_id=ai.id, content=reply_text, reactions={})
+        db.add(ai_msg)
+        await db.commit()
+        await db.refresh(ai_msg)
+        payload = await _serialize(ai_msg, {ai.id: {"name": ai.name, "avatar_emoji": ai.avatar_emoji, "avatar_color": ai.avatar_color}})
+        await sio.emit("chat_message", payload, room=f"chat_{channel}")
 
 
 @router.post("/messages/{message_id}/react")
