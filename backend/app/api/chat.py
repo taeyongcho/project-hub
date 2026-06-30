@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.socketio import sio
-from app.models.chat import ChatMessage, ChatGroup
+from datetime import datetime
+from sqlalchemy import func
+from app.models.chat import ChatMessage, ChatGroup, ChatRead, StickerAsset
 from app.models.user import User
 from app.models.project import Project
 
@@ -23,6 +25,11 @@ class MessageIn(BaseModel):
     channel: str
     content: str = ""
     attachment: dict | None = None
+    reply_to: dict | None = None
+
+
+class ReactIn(BaseModel):
+    emoji: str
 
 
 class GroupIn(BaseModel):
@@ -63,6 +70,8 @@ async def _serialize(m: ChatMessage, name_map: dict) -> dict:
         "sender_name": name_map.get(m.sender_id, "?"),
         "content": m.content,
         "attachment": m.attachment,
+        "reply_to": m.reply_to,
+        "reactions": m.reactions or {},
         "created_at": str(m.created_at),
     }
 
@@ -185,7 +194,8 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
     if not body.content.strip() and not body.attachment:
         raise HTTPException(status_code=400, detail="빈 메시지")
     msg = ChatMessage(channel=body.channel, sender_id=current_user.id,
-                      content=body.content.strip(), attachment=body.attachment)
+                      content=body.content.strip(), attachment=body.attachment,
+                      reply_to=body.reply_to, reactions={})
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
@@ -193,3 +203,90 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
     # 같은 채널 방의 모든 접속자에게 실시간 전송
     await sio.emit("chat_message", payload, room=f"chat_{body.channel}")
     return payload
+
+
+@router.post("/messages/{message_id}/react")
+async def react(message_id: int, body: ReactIn, db: AsyncSession = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    m = (await db.execute(select(ChatMessage).where(ChatMessage.id == message_id))).scalar_one_or_none()
+    if not m:
+        raise HTTPException(status_code=404, detail="메시지를 찾을 수 없습니다")
+    if not await _can_access_channel(m.channel, current_user, db):
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
+    reactions = dict(m.reactions or {})
+    users = list(reactions.get(body.emoji, []))
+    if current_user.id in users:
+        users.remove(current_user.id)
+    else:
+        users.append(current_user.id)
+    if users:
+        reactions[body.emoji] = users
+    else:
+        reactions.pop(body.emoji, None)
+    m.reactions = reactions
+    await db.commit()
+    # 실시간 반영
+    await sio.emit("chat_update", {"id": m.id, "channel": m.channel, "reactions": reactions},
+                   room=f"chat_{m.channel}")
+    return {"id": m.id, "reactions": reactions}
+
+
+@router.post("/read")
+async def mark_read(body: dict, db: AsyncSession = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    channel = body.get("channel")
+    if not channel:
+        raise HTTPException(status_code=400, detail="channel 필요")
+    r = (await db.execute(select(ChatRead).where(
+        ChatRead.user_id == current_user.id, ChatRead.channel == channel))).scalar_one_or_none()
+    if r:
+        r.last_read_at = datetime.utcnow()
+    else:
+        db.add(ChatRead(user_id=current_user.id, channel=channel, last_read_at=datetime.utcnow()))
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/unread")
+async def unread(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    reads = (await db.execute(select(ChatRead).where(ChatRead.user_id == current_user.id))).scalars().all()
+    read_map = {r.channel: r.last_read_at for r in reads}
+    # 메시지가 존재하는 채널들
+    ch_rows = await db.execute(select(ChatMessage.channel).distinct())
+    per = {}
+    total = 0
+    for (ch,) in ch_rows.all():
+        if not await _can_access_channel(ch, current_user, db):
+            continue
+        last = read_map.get(ch)
+        cond = [ChatMessage.channel == ch, ChatMessage.sender_id != current_user.id]
+        if last is not None:
+            cond.append(ChatMessage.created_at > last)
+        cnt = await db.scalar(select(func.count(ChatMessage.id)).where(*cond))
+        if cnt:
+            per[ch] = cnt
+            total += cnt
+    return {"total": total, "channels": per}
+
+
+@router.get("/stickers")
+async def list_stickers(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    rows = await db.execute(select(StickerAsset).order_by(StickerAsset.created_at.desc()).limit(60))
+    return [{"id": s.id, "url": s.url, "name": s.name} for s in rows.scalars().all()]
+
+
+@router.post("/stickers")
+async def add_sticker(file: UploadFile = File(...), db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    data = await file.read()
+    if len(data) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="스티커는 최대 2MB")
+    ext = os.path.splitext(file.filename or "")[1][:10] or ".png"
+    stored = f"{uuid.uuid4().hex}{ext}"
+    with open(os.path.join(UPLOAD_DIR, stored), "wb") as f:
+        f.write(data)
+    s = StickerAsset(url=f"/api/chat/files/{stored}", name=(file.filename or "")[:255], created_by_id=current_user.id)
+    db.add(s)
+    await db.commit()
+    await db.refresh(s)
+    return {"id": s.id, "url": s.url, "name": s.name}

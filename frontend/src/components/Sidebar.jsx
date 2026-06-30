@@ -42,6 +42,12 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
     refetchInterval: 60000,
   })
 
+  const { data: chatUnread } = useQuery({
+    queryKey: ['chat-unread'],
+    queryFn: () => api.get('/chat/unread').then(r => r.data),
+    refetchInterval: 30000,
+  })
+
   const { data: projects } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.get('/projects').then(r => r.data),
@@ -99,6 +105,11 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
             <NavLink key={item.to} to={item.to} className={navLinkCls}>
               <item.icon size={18} />
               <span>{item.label}</span>
+              {item.to === '/chat' && chatUnread?.total > 0 && (
+                <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                  {chatUnread.total}
+                </span>
+              )}
             </NavLink>
           ))}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -62,10 +62,24 @@ export default function Chat() {
   const channelRef = useRef(channel)
 
   const [showGroupModal, setShowGroupModal] = useState(false)
+  const [replyTo, setReplyTo] = useState(null) // {id, sender_name, preview}
+  const [stickerTab, setStickerTab] = useState('emoji') // 'emoji' | 'image'
+  const [reactFor, setReactFor] = useState(null) // 반응 팔레트 대상 메시지 id
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
     queryFn: () => api.get('/chat/channels').then(r => r.data)
+  })
+
+  const { data: unread } = useQuery({
+    queryKey: ['chat-unread'],
+    queryFn: () => api.get('/chat/unread').then(r => r.data),
+    refetchInterval: 30000
+  })
+
+  const { data: imageStickers = [] } = useQuery({
+    queryKey: ['chat-stickers'],
+    queryFn: () => api.get('/chat/stickers').then(r => r.data)
   })
 
   const { data: groups = [] } = useQuery({
@@ -80,7 +94,13 @@ export default function Chat() {
     socketRef.current = socket
     socket.on('chat_message', (msg) => {
       if (msg.channel === channelRef.current) {
-        setMessages(prev => [...prev, msg])
+        setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+      }
+      qc.invalidateQueries({ queryKey: ['chat-unread'] })
+    })
+    socket.on('chat_update', (upd) => {
+      if (upd.channel === channelRef.current) {
+        setMessages(prev => prev.map(m => m.id === upd.id ? { ...m, reactions: upd.reactions } : m))
       }
     })
     return () => socket.disconnect()
@@ -93,6 +113,9 @@ export default function Chat() {
     if (!socket) return
     socket.emit('join_channel', { channel })
     api.get(`/chat/messages?channel=${encodeURIComponent(channel)}`).then(r => setMessages(r.data))
+    // 읽음 처리
+    api.post('/chat/read', { channel }).then(() => qc.invalidateQueries({ queryKey: ['chat-unread'] }))
+    setReplyTo(null)
     return () => { socket.emit('leave_channel', { channel }) }
   }, [channel])
 
@@ -101,8 +124,10 @@ export default function Chat() {
 
   const sendMsg = async ({ content = '', attachment = null }) => {
     if (!content.trim() && !attachment) return
-    const msg = await api.post('/chat/messages', { channel, content, attachment }).then(r => r.data)
+    const payload = { channel, content, attachment, reply_to: replyTo || null }
+    const msg = await api.post('/chat/messages', payload).then(r => r.data)
     setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+    setReplyTo(null)
   }
 
   const send = async () => {
@@ -116,6 +141,24 @@ export default function Chat() {
   const sendSticker = async (emoji) => {
     setPicker(null)
     await sendMsg({ content: emoji })
+  }
+
+  const sendImageSticker = async (st) => {
+    setPicker(null)
+    await sendMsg({ attachment: { url: st.url, name: st.name, type: 'image/png', size: 0, sticker: true } })
+  }
+
+  const uploadSticker = async (file) => {
+    if (!file) return
+    const fd = new FormData(); fd.append('file', file)
+    await api.post('/chat/stickers', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    qc.invalidateQueries({ queryKey: ['chat-stickers'] })
+  }
+
+  const toggleReaction = async (msgId, emoji) => {
+    setReactFor(null)
+    const res = await api.post(`/chat/messages/${msgId}/react`, { emoji }).then(r => r.data)
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: res.reactions } : m))
   }
 
   const [uploading, setUploading] = useState(false)
@@ -158,11 +201,12 @@ export default function Chat() {
         <div className="flex-1 overflow-y-auto py-2">
           {/* 팀 채널 */}
           <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">채널</div>
-          <ChannelItem active={channel === 'team'} onClick={() => pick('team', '전체 팀')} icon={<Hash size={16} />} label="전체 팀" />
+          <ChannelItem active={channel === 'team'} onClick={() => pick('team', '전체 팀')} icon={<Hash size={16} />} label="전체 팀" badge={unread?.channels?.['team']} />
           {channels?.projects?.map(p => (
             <ChannelItem key={p.id} active={channel === `project:${p.id}`}
               onClick={() => pick(`project:${p.id}`, p.name)}
-              icon={<span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />} label={p.name} />
+              icon={<span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />} label={p.name}
+              badge={unread?.channels?.[`project:${p.id}`]} />
           ))}
 
           {/* 그룹 */}
@@ -173,7 +217,8 @@ export default function Chat() {
           {groups.map(g => (
             <ChannelItem key={g.id} active={channel === `group:${g.id}`}
               onClick={() => pick(`group:${g.id}`, g.name)}
-              icon={<UsersRound size={16} />} label={`${g.name} (${g.member_ids.length})`} />
+              icon={<UsersRound size={16} />} label={`${g.name} (${g.member_ids.length})`}
+              badge={unread?.channels?.[`group:${g.id}`]} />
           ))}
 
           {/* DM */}
@@ -183,7 +228,7 @@ export default function Chat() {
             return (
               <ChannelItem key={u.id} active={channel === ch} onClick={() => pick(ch, u.name)}
                 icon={<span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${(u.id * 137) % 360},60%,50%)` }}>{u.name[0]}</span>}
-                label={u.name} />
+                label={u.name} badge={unread?.channels?.[ch]} />
             )
           })}
         </div>
@@ -204,36 +249,79 @@ export default function Chat() {
           ) : messages.map((m, i) => {
             const mine = m.sender_id === user.id
             const showName = i === 0 || messages[i - 1].sender_id !== m.sender_id
+            const isSticker = m.attachment?.sticker
             return (
-              <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
+              <div key={m.id} className={`group flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[70%] ${mine ? 'items-end' : 'items-start'} flex flex-col relative`}>
                   {showName && !mine && <span className="text-xs text-slate-500 mb-0.5 ml-1">{m.sender_name}</span>}
 
-                  {/* 첨부 */}
-                  {m.attachment && (m.attachment.type?.startsWith('image/') ? (
-                    <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" className="block mb-1">
-                      <img src={m.attachment.url} alt={m.attachment.name} className="max-w-[240px] max-h-60 rounded-xl border border-slate-200 dark:border-slate-700" />
-                    </a>
-                  ) : (
-                    <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" download
-                      className={`flex items-center gap-2 mb-1 px-3 py-2 rounded-xl border ${mine ? 'bg-blue-500/20 border-blue-300' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
-                      <FileText size={20} className="text-slate-400 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className={`text-sm font-medium truncate ${mine ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>{m.attachment.name}</div>
-                        <div className={`text-[10px] ${mine ? 'text-blue-100' : 'text-slate-400'}`}>{fmtSize(m.attachment.size || 0)}</div>
-                      </div>
-                      <Download size={15} className={mine ? 'text-blue-100' : 'text-slate-400'} />
-                    </a>
-                  ))}
+                  {/* 답글 인용 */}
+                  {m.reply_to && (
+                    <div className={`text-xs px-2.5 py-1 mb-0.5 rounded-lg border-l-2 ${mine ? 'bg-blue-500/10 border-blue-300 text-slate-500' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 text-slate-500'}`}>
+                      <span className="font-medium">{m.reply_to.sender_name}</span>: {m.reply_to.preview}
+                    </div>
+                  )}
 
-                  {/* 텍스트 */}
-                  {m.content && (isEmojiOnly(m.content) ? (
-                    <div className="text-5xl leading-none px-1 py-1 select-none">{m.content}</div>
-                  ) : (
-                    <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
-                      mine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
-                    }`}>{linkify(m.content)}</div>
-                  ))}
+                  <div className="flex items-end gap-1.5">
+                    {/* 호버 액션 (내 메시지면 왼쪽) */}
+                    {mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} />}
+
+                    <div className="flex flex-col">
+                      {/* 첨부 / 스티커 */}
+                      {m.attachment && (isSticker ? (
+                        <img src={m.attachment.url} alt="sticker" className="max-w-[120px] max-h-[120px] mb-1 select-none" />
+                      ) : m.attachment.type?.startsWith('image/') ? (
+                        <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" className="block mb-1">
+                          <img src={m.attachment.url} alt={m.attachment.name} className="max-w-[240px] max-h-60 rounded-xl border border-slate-200 dark:border-slate-700" />
+                        </a>
+                      ) : (
+                        <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" download
+                          className={`flex items-center gap-2 mb-1 px-3 py-2 rounded-xl border ${mine ? 'bg-blue-500/20 border-blue-300' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                          <FileText size={20} className="text-slate-400 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className={`text-sm font-medium truncate ${mine ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>{m.attachment.name}</div>
+                            <div className={`text-[10px] ${mine ? 'text-blue-100' : 'text-slate-400'}`}>{fmtSize(m.attachment.size || 0)}</div>
+                          </div>
+                          <Download size={15} className={mine ? 'text-blue-100' : 'text-slate-400'} />
+                        </a>
+                      ))}
+
+                      {/* 텍스트 */}
+                      {m.content && (isEmojiOnly(m.content) ? (
+                        <div className="text-5xl leading-none px-1 py-1 select-none">{m.content}</div>
+                      ) : (
+                        <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
+                          mine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
+                        }`}>{linkify(m.content)}</div>
+                      ))}
+                    </div>
+
+                    {!mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} />}
+                  </div>
+
+                  {/* 반응 팔레트 */}
+                  {reactFor === m.id && (
+                    <div className="flex gap-1 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-1 shadow-lg z-10">
+                      {['👍','❤️','😂','🎉','😮','😢','🙏'].map(e => (
+                        <button key={e} onClick={() => toggleReaction(m.id, e)} className="text-lg hover:scale-125 transition-transform">{e}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* 반응 칩 */}
+                  {m.reactions && Object.keys(m.reactions).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(m.reactions).map(([emoji, uids]) => (
+                        <button key={emoji} onClick={() => toggleReaction(m.id, emoji)}
+                          className={`text-xs px-1.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                            uids.includes(user.id) ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 text-blue-700 dark:text-blue-300' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                          }`}>
+                          <span>{emoji}</span><span>{uids.length}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <span className="text-[10px] text-slate-400 mt-0.5 mx-1">{dayjs(m.created_at).format('HH:mm')}</span>
                 </div>
               </div>
@@ -260,16 +348,47 @@ export default function Chat() {
               ))}
             </div>
           )}
-          {/* 스티커 피커 */}
+          {/* 스티커 피커 (기본/이미지 탭) */}
           {picker === 'sticker' && (
             <div className="absolute bottom-full left-6 mb-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-3 z-50">
-              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">스티커 (클릭하면 바로 전송)</div>
-              <div className="grid grid-cols-6 gap-1">
-                {STICKERS.map((s, i) => (
-                  <button key={i} onClick={() => sendSticker(s)}
-                    className="text-3xl p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">{s}</button>
-                ))}
+              <div className="flex gap-1 mb-2">
+                <button onClick={() => setStickerTab('emoji')} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${stickerTab === 'emoji' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' : 'text-slate-500'}`}>기본</button>
+                <button onClick={() => setStickerTab('image')} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${stickerTab === 'image' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' : 'text-slate-500'}`}>이미지</button>
+                <label className="ml-auto text-xs px-2.5 py-1 rounded-lg text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer font-medium">
+                  + 업로드
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { uploadSticker(e.target.files[0]); e.target.value = '' }} />
+                </label>
               </div>
+              {stickerTab === 'emoji' ? (
+                <div className="grid grid-cols-6 gap-1 max-h-52 overflow-y-auto">
+                  {STICKERS.map((s, i) => (
+                    <button key={i} onClick={() => sendSticker(s)}
+                      className="text-3xl p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">{s}</button>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto">
+                  {imageStickers.length === 0
+                    ? <div className="col-span-4 text-center text-xs text-slate-400 py-6">업로드한 이미지 스티커가 없습니다.<br/>+ 업로드로 PNG를 추가하세요.</div>
+                    : imageStickers.map(st => (
+                      <button key={st.id} onClick={() => sendImageSticker(st)}
+                        className="aspect-square p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl">
+                        <img src={st.url} alt={st.name} className="w-full h-full object-contain" />
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 답글 배너 */}
+          {replyTo && (
+            <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border-l-2 border-blue-400">
+              <CornerUpLeft size={14} className="text-blue-500 flex-shrink-0" />
+              <div className="min-w-0 flex-1 text-xs text-slate-500">
+                <span className="font-medium text-slate-700 dark:text-slate-200">{replyTo.sender_name}</span>님에게 답글: {replyTo.preview}
+              </div>
+              <button onClick={() => setReplyTo(null)} className="text-slate-400 hover:text-slate-700"><X size={14} /></button>
             </div>
           )}
 
@@ -357,14 +476,26 @@ function GroupModal({ users, onClose, onCreated }) {
   )
 }
 
-function ChannelItem({ active, onClick, icon, label }) {
+function MsgActions({ onReply, onReact }) {
+  return (
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center">
+      <button onClick={onReact} title="반응" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Smile size={14} /></button>
+      <button onClick={onReply} title="답글" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><CornerUpLeft size={14} /></button>
+    </div>
+  )
+}
+
+function ChannelItem({ active, onClick, icon, label, badge }) {
   return (
     <button onClick={onClick}
       className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
         active ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
       }`}>
       <span className="flex-shrink-0 flex items-center justify-center w-5">{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1 text-left">{label}</span>
+      {badge > 0 && !active && (
+        <span className="flex-shrink-0 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{badge}</span>
+      )}
     </button>
   )
 }
