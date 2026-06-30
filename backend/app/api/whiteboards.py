@@ -14,6 +14,7 @@ router = APIRouter(prefix="/whiteboards", tags=["화이트보드"])
 class WhiteboardUpdate(BaseModel):
     name: str = None
     objects: list = None
+    thumbnail: str = None
 
 
 class WhiteboardCreate(BaseModel):
@@ -44,6 +45,8 @@ async def list_whiteboards(
             "id": wb.id,
             "name": wb.name,
             "object_count": len(wb.objects) if isinstance(wb.objects, list) else 0,
+            "thumbnail": wb.thumbnail,
+            "project_id": wb.project_id,
             "created_by_id": wb.created_by_id,
             "created_at": str(wb.created_at),
             "updated_at": str(wb.updated_at)
@@ -117,6 +120,8 @@ async def update_whiteboard(
         wb.name = data.name
     if data.objects is not None:
         wb.objects = data.objects
+    if data.thumbnail is not None:
+        wb.thumbnail = data.thumbnail
 
     await db.commit()
     await db.refresh(wb)

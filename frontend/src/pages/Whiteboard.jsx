@@ -134,13 +134,22 @@ export default function Whiteboard() {
     setTimeout(() => { loadedRef.current = true }, 100)
   }, [board, user])
 
+  // 썸네일 캡처 (축소된 미리보기 이미지)
+  const captureThumbnail = () => {
+    try {
+      const stage = stageRef.current
+      if (!stage) return null
+      return stage.toDataURL({ pixelRatio: 0.25, mimeType: 'image/jpeg', quality: 0.5 })
+    } catch { return null }
+  }
+
   // 자동 저장 (변경 1.5초 후)
   useEffect(() => {
     if (!loadedRef.current || !boardId || boardId === 'undefined') return
     setSaveStatus('unsaved')
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      saveMut.mutate({ objects })
+      saveMut.mutate({ objects, thumbnail: captureThumbnail() })
     }, 1500)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [objects])
@@ -503,7 +512,7 @@ export default function Whiteboard() {
           <span className="text-xs px-2 text-slate-400 min-w-[60px] text-center">
             {saveStatus === 'saving' ? '저장 중…' : saveStatus === 'unsaved' ? '● 미저장' : '✓ 저장됨'}
           </span>
-          <button onClick={() => saveMut.mutate({ objects })} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">💾 저장</button>
+          <button onClick={() => saveMut.mutate({ objects, thumbnail: captureThumbnail() })} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">💾 저장</button>
         </div>
       </div>
 

@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import dayjs from 'dayjs'
 
 export default function NotificationPanel({ onClose, onSelectTask }) {
+  const navigate = useNavigate()
   const { data } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => api.get('/notifications').then(r => r.data),
@@ -34,19 +36,28 @@ export default function NotificationPanel({ onClose, onSelectTask }) {
               {items.map((item, i) => (
                 <button
                   key={i}
-                  onClick={() => { onSelectTask(item.task_id); onClose() }}
+                  onClick={() => {
+                    if (item.type === 'worklog_reminder') { navigate('/worklog'); onClose() }
+                    else { onSelectTask(item.task_id); onClose() }
+                  }}
                   className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 ${
-                    item.type === 'overdue' ? 'border-l-2 border-l-red-400' : 'border-l-2 border-l-amber-400'
+                    item.type === 'overdue' ? 'border-l-2 border-l-red-400'
+                      : item.type === 'worklog_reminder' ? 'border-l-2 border-l-blue-400'
+                      : 'border-l-2 border-l-amber-400'
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    <span className={`text-base flex-shrink-0 mt-0.5 ${item.type === 'overdue' ? 'text-red-500' : 'text-amber-500'}`}>
-                      {item.type === 'overdue' ? '⚠' : '⏰'}
+                    <span className={`text-base flex-shrink-0 mt-0.5 ${
+                      item.type === 'overdue' ? 'text-red-500'
+                        : item.type === 'worklog_reminder' ? 'text-blue-500' : 'text-amber-500'
+                    }`}>
+                      {item.type === 'overdue' ? '⚠' : item.type === 'worklog_reminder' ? '📝' : '⏰'}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-slate-800 truncate">{item.title}</div>
                       <div className={`text-xs mt-0.5 font-semibold ${
-                        item.type === 'overdue' ? 'text-red-500' : 'text-amber-500'
+                        item.type === 'overdue' ? 'text-red-500'
+                          : item.type === 'worklog_reminder' ? 'text-blue-500' : 'text-amber-500'
                       }`}>{item.message}</div>
                       <div className="text-xs text-slate-400 mt-0.5">{dayjs(item.due_date).format('YYYY-MM-DD')}</div>
                     </div>

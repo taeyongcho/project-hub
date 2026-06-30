@@ -16,11 +16,29 @@ const EMPTY = { name: '', url: '', description: '', category: '기타', environm
 export default function SystemLinks() {
   const qc = useQueryClient()
   const [modal, setModal] = useState(null) // null | {…link} (편집) | EMPTY (신규)
+  const [statuses, setStatuses] = useState({}) // { id: { status, ms, checking } }
 
   const { data: links = [], isLoading } = useQuery({
     queryKey: ['system-links'],
     queryFn: () => api.get('/system-links').then(r => r.data)
   })
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => api.get('/projects').then(r => r.data)
+  })
+
+  const checkOne = async (id) => {
+    setStatuses(s => ({ ...s, [id]: { ...s[id], checking: true } }))
+    try {
+      const res = await api.get(`/system-links/${id}/check`).then(r => r.data)
+      setStatuses(s => ({ ...s, [id]: { status: res.status, ms: res.ms, checking: false } }))
+    } catch {
+      setStatuses(s => ({ ...s, [id]: { status: 'down', checking: false } }))
+    }
+  }
+
+  const checkAll = () => links.forEach(l => checkOne(l.id))
 
   const saveMut = useMutation({
     mutationFn: (data) => data.id
@@ -62,10 +80,18 @@ export default function SystemLinks() {
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">테스트·개발 환경 URL을 모아두고 바로 접속하세요</p>
         </div>
-        <button onClick={() => setModal({ ...EMPTY })}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors">
-          <Plus size={18} /> 시스템 등록
-        </button>
+        <div className="flex items-center gap-2">
+          {links.length > 0 && (
+            <button onClick={checkAll}
+              className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-medium transition-colors text-sm">
+              상태 확인
+            </button>
+          )}
+          <button onClick={() => setModal({ ...EMPTY })}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors">
+            <Plus size={18} /> 시스템 등록
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -91,6 +117,20 @@ export default function SystemLinks() {
                       <div className="flex items-start justify-between">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-1">
+                            {/* 상태 표시 */}
+                            {(() => {
+                              const st = statuses[l.id]
+                              const dot = st?.checking ? 'bg-slate-300 animate-pulse'
+                                : st?.status === 'up' ? 'bg-green-500'
+                                : st?.status === 'down' ? 'bg-red-500' : 'bg-slate-300'
+                              const title = st?.checking ? '확인 중'
+                                : st?.status === 'up' ? `정상 (${st.ms}ms)`
+                                : st?.status === 'down' ? '응답 없음' : '미확인 — 클릭하여 확인'
+                              return (
+                                <button onClick={() => checkOne(l.id)} title={title}
+                                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
+                              )
+                            })()}
                             <h3 className="font-semibold text-slate-900 truncate">{l.name}</h3>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${env.cls}`}>{env.label}</span>
                           </div>
@@ -127,6 +167,14 @@ export default function SystemLinks() {
               <Field label="이름 *" value={modal.name} onChange={v => setModal({ ...modal, name: v })} placeholder="예: 주문관리 API" />
               <Field label="URL / 주소 *" value={modal.url} onChange={v => setModal({ ...modal, url: v })} placeholder="http://192.168.0.10:8000" mono />
               <Field label="설명" value={modal.description || ''} onChange={v => setModal({ ...modal, description: v })} placeholder="메모 (선택)" />
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">연결 프로젝트 (선택)</label>
+                <select value={modal.project_id || ''} onChange={e => setModal({ ...modal, project_id: e.target.value ? Number(e.target.value) : null })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">없음</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">분류</label>

@@ -92,10 +92,12 @@ export default function Whiteboards() {
               {/* 썸네일 영역 */}
               <div
                 onClick={() => navigate(`/whiteboard/${b.id}`)}
-                className="h-32 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center cursor-pointer relative"
+                className="h-32 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center cursor-pointer relative overflow-hidden"
               >
-                <PenTool size={32} className="text-slate-300 dark:text-slate-600" />
-                <span className="absolute bottom-2 right-3 text-[11px] text-slate-400">
+                {b.thumbnail
+                  ? <img src={b.thumbnail} alt={b.name} className="w-full h-full object-contain bg-white" />
+                  : <PenTool size={32} className="text-slate-300 dark:text-slate-600" />}
+                <span className="absolute bottom-2 right-3 text-[11px] text-slate-400 bg-white/70 dark:bg-slate-900/70 px-1.5 rounded">
                   요소 {b.object_count}개
                 </span>
               </div>

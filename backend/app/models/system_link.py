@@ -12,6 +12,7 @@ class SystemLink(Base):
     description = Column(String(1000), nullable=True) # 설명/메모
     category = Column(String(100), default="기타")     # 분류 (개발/테스트/운영 등)
     environment = Column(String(50), default="test")  # dev / test / staging / prod
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # 연결된 프로젝트
     created_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

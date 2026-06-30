@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import date
+from datetime import date, datetime
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.task import Task
+from app.models.work_log import WorkLog
 
 router = APIRouter(prefix="/notifications", tags=["알림"])
 
@@ -50,5 +51,22 @@ async def get_notifications(db: AsyncSession = Depends(get_db), current_user=Dep
             "message": "오늘 마감",
             "due_date": str(t.due_date),
         })
+
+    # 업무일지 미작성 리마인더 (평일 오후 2시 이후)
+    now = datetime.now()
+    if now.weekday() < 5 and now.hour >= 14:
+        log_today = await db.scalar(
+            select(WorkLog.id).where(
+                WorkLog.user_id == current_user.id,
+                WorkLog.log_date == today
+            )
+        )
+        if not log_today:
+            items.append({
+                "id": -1, "task_id": None, "title": "오늘 업무일지 미작성",
+                "type": "worklog_reminder",
+                "message": "오늘 업무일지를 작성해주세요",
+                "due_date": str(today),
+            })
 
     return {"count": len(items), "items": items}

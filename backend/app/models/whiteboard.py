@@ -11,6 +11,7 @@ class Whiteboard(Base):
     name = Column(String(255), default="Untitled Board")
     description = Column(String(1000), nullable=True)
     objects = Column(JSON, default=list)  # 모든 그리기 오브젝트
+    thumbnail = Column(String, nullable=True)  # base64 미리보기 이미지
     project_id = Column(Integer, ForeignKey("projects.id"))
     created_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)

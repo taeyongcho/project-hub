@@ -38,7 +38,9 @@ export default function SearchModal({ onClose, onSelectTask }) {
 
   const tasks = data?.tasks || []
   const projects = data?.projects || []
-  const hasResults = tasks.length > 0 || projects.length > 0
+  const whiteboards = data?.whiteboards || []
+  const systemLinks = data?.system_links || []
+  const hasResults = tasks.length > 0 || projects.length > 0 || whiteboards.length > 0 || systemLinks.length > 0
 
   return (
     <>
@@ -52,7 +54,7 @@ export default function SearchModal({ onClose, onSelectTask }) {
               ref={inputRef}
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="태스크, 프로젝트 검색..."
+              placeholder="태스크, 프로젝트, 화이트보드, 시스템 검색..."
               className="flex-1 text-sm text-slate-800 outline-none placeholder-slate-400 bg-transparent"
             />
             {isFetching && <span className="text-xs text-slate-400">검색 중...</span>}
@@ -103,6 +105,33 @@ export default function SearchModal({ onClose, onSelectTask }) {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_COLORS[t.status]}`}>
                         {STATUS_LABEL[t.status]}
                       </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {whiteboards.length > 0 && (
+                <div>
+                  <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">화이트보드</div>
+                  {whiteboards.map(w => (
+                    <button key={w.id} onClick={() => { navigate(`/whiteboard/${w.id}`); onClose() }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
+                      <span className="text-slate-400 text-sm flex-shrink-0">🖊️</span>
+                      <span className="text-sm font-medium text-slate-800 flex-1 truncate">{w.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {systemLinks.length > 0 && (
+                <div>
+                  <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">시스템 바로가기</div>
+                  {systemLinks.map(s => (
+                    <button key={s.id} onClick={() => { window.open(s.url, '_blank'); onClose() }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left">
+                      <span className="text-slate-400 text-sm flex-shrink-0">🖥️</span>
+                      <span className="text-sm font-medium text-slate-800 flex-shrink-0">{s.name}</span>
+                      <span className="text-xs text-blue-600 font-mono truncate ml-auto">{s.url}</span>
                     </button>
                   ))}
                 </div>

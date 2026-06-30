@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useOutletContext } from 'react-router-dom'
+import { useParams, useOutletContext, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
 import dayjs from 'dayjs'
@@ -22,6 +22,7 @@ const PRIORITY_BORDER = {
 export default function ProjectDetail() {
   const { id } = useParams()
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const { onSelectTask } = useOutletContext()
   const [tab, setTab] = useState('kanban')
   const [showTask, setShowTask] = useState(false)
@@ -77,6 +78,23 @@ export default function ProjectDetail() {
   const { data: members = [] } = useQuery({
     queryKey: ['project-members', id],
     queryFn: () => api.get(`/projects/${id}/members`).then(r => r.data)
+  })
+
+  // 이 프로젝트에 연결된 화이트보드 / 시스템 링크
+  const { data: allBoards = [] } = useQuery({
+    queryKey: ['whiteboards'],
+    queryFn: () => api.get('/whiteboards').then(r => r.data)
+  })
+  const { data: allLinks = [] } = useQuery({
+    queryKey: ['system-links'],
+    queryFn: () => api.get('/system-links').then(r => r.data)
+  })
+  const projectBoards = allBoards.filter(b => String(b.project_id) === String(id))
+  const projectLinks = allLinks.filter(l => String(l.project_id) === String(id))
+
+  const createBoardMut = useMutation({
+    mutationFn: () => api.post('/whiteboards', { name: `${project?.name} 보드`, project_id: Number(id) }).then(r => r.data),
+    onSuccess: (data) => { qc.invalidateQueries({ queryKey: ['whiteboards'] }); navigate(`/whiteboard/${data.id}`) }
   })
 
   const addMemberMut = useMutation({
@@ -205,6 +223,28 @@ export default function ProjectDetail() {
           </div>
         )}
       </div>
+
+      {/* 연결된 리소스 (화이트보드 / 시스템) */}
+      {(projectBoards.length > 0 || projectLinks.length > 0 || true) && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {projectBoards.map(b => (
+            <button key={`b${b.id}`} onClick={() => navigate(`/whiteboard/${b.id}`)}
+              className="flex items-center gap-1.5 text-xs bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
+              🖊️ {b.name}
+            </button>
+          ))}
+          {projectLinks.map(l => (
+            <button key={`l${l.id}`} onClick={() => window.open(l.url, '_blank')}
+              className="flex items-center gap-1.5 text-xs bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 px-3 py-1.5 rounded-lg transition-colors">
+              🖥️ {l.name}
+            </button>
+          ))}
+          <button onClick={() => createBoardMut.mutate()} disabled={createBoardMut.isPending}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-dashed border-blue-300">
+            + 화이트보드
+          </button>
+        </div>
+      )}
 
       {/* 탭 */}
       <div className="flex gap-1 mb-4 border-b border-slate-200 pb-0">

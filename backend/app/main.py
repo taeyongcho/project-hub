@@ -34,6 +34,12 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS start_date DATE"
         ))
+        await conn.execute(text(
+            "ALTER TABLE whiteboards ADD COLUMN IF NOT EXISTS thumbnail TEXT"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE system_links ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id)"
+        ))
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
 
