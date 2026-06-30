@@ -38,6 +38,12 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE whiteboards ADD COLUMN IF NOT EXISTS thumbnail TEXT"
         ))
         await conn.execute(text(
+            "ALTER TABLE whiteboards ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'shared'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE whiteboards ADD COLUMN IF NOT EXISTS shared_with JSON DEFAULT '[]'"
+        ))
+        await conn.execute(text(
             "ALTER TABLE system_links ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id)"
         ))
         # project_members 테이블은 create_all로 자동 생성됨

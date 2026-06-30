@@ -12,6 +12,8 @@ class Whiteboard(Base):
     description = Column(String(1000), nullable=True)
     objects = Column(JSON, default=list)  # 모든 그리기 오브젝트
     thumbnail = Column(String, nullable=True)  # base64 미리보기 이미지
+    visibility = Column(String(20), default="shared")  # shared(전체) | private(지정)
+    shared_with = Column(JSON, default=list)  # private일 때 접근 허용 user_id 목록
     project_id = Column(Integer, ForeignKey("projects.id"))
     created_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)

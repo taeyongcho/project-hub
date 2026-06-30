@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, PenTool, Trash2, Pencil, Check, X } from 'lucide-react'
+import { Plus, PenTool, Trash2, Pencil, Check, X, Share2, Globe, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -18,10 +18,26 @@ export default function Whiteboards() {
   const qc = useQueryClient()
   const [editId, setEditId] = useState(null)
   const [editName, setEditName] = useState('')
+  const [shareBoard, setShareBoard] = useState(null) // 공유 모달 대상 board
 
   const { data: boards, isLoading } = useQuery({
     queryKey: ['whiteboards'],
     queryFn: () => api.get('/whiteboards').then(r => r.data)
+  })
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.get('/users').then(r => r.data)
+  })
+
+  const shareMut = useMutation({
+    mutationFn: ({ id, visibility, shared_with }) => api.patch(`/whiteboards/${id}/share`, { visibility, shared_with }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['whiteboards'] })
+      setShareBoard(null)
+      toast.success('공유 설정이 저장되었습니다')
+    },
+    onError: () => toast.error('소유자만 변경할 수 있습니다')
   })
 
   const createMut = useMutation({
@@ -123,10 +139,24 @@ export default function Whiteboards() {
                 ) : (
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 cursor-pointer" onClick={() => navigate(`/whiteboard/${b.id}`)}>
-                      <h3 className="font-semibold text-slate-900 dark:text-white truncate">{b.name}</h3>
+                      <h3 className="font-semibold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                        {b.name}
+                        {b.visibility === 'private'
+                          ? <Lock size={12} className="text-slate-400 flex-shrink-0" />
+                          : <Globe size={12} className="text-slate-300 flex-shrink-0" />}
+                      </h3>
                       <p className="text-xs text-slate-400 mt-0.5">{dayjs(b.updated_at).fromNow()} 수정</p>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {b.created_by_id === user?.id && (
+                        <button
+                          onClick={() => setShareBoard(b)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                          title="공유 설정"
+                        >
+                          <Share2 size={15} />
+                        </button>
+                      )}
                       <button
                         onClick={() => { setEditId(b.id); setEditName(b.name) }}
                         className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
@@ -149,6 +179,68 @@ export default function Whiteboards() {
           ))}
         </div>
       )}
+
+      {shareBoard && (
+        <ShareModal board={shareBoard} users={users} currentUser={user}
+          onClose={() => setShareBoard(null)}
+          onSave={(visibility, shared_with) => shareMut.mutate({ id: shareBoard.id, visibility, shared_with })}
+          saving={shareMut.isPending} />
+      )}
+    </div>
+  )
+}
+
+function ShareModal({ board, users, currentUser, onClose, onSave, saving }) {
+  const [visibility, setVisibility] = useState(board.visibility || 'shared')
+  const [selected, setSelected] = useState(board.shared_with || [])
+  const toggle = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">공유 설정</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
+        </div>
+        <p className="text-sm text-slate-500 mb-4 truncate">{board.name}</p>
+
+        <div className="space-y-2 mb-4">
+          <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${visibility === 'shared' ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' : 'border-slate-200 dark:border-slate-700'}`}>
+            <input type="radio" checked={visibility === 'shared'} onChange={() => setVisibility('shared')} />
+            <Globe size={18} className="text-slate-500" />
+            <div>
+              <div className="text-sm font-medium text-slate-800 dark:text-slate-100">전체 공개</div>
+              <div className="text-xs text-slate-400">모든 팀원이 보고 편집</div>
+            </div>
+          </label>
+          <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${visibility === 'private' ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' : 'border-slate-200 dark:border-slate-700'}`}>
+            <input type="radio" checked={visibility === 'private'} onChange={() => setVisibility('private')} />
+            <Lock size={18} className="text-slate-500" />
+            <div>
+              <div className="text-sm font-medium text-slate-800 dark:text-slate-100">지정 멤버만</div>
+              <div className="text-xs text-slate-400">선택한 사람만 접근 가능</div>
+            </div>
+          </label>
+        </div>
+
+        {visibility === 'private' && (
+          <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 mb-4">
+            {users.filter(u => u.id !== currentUser.id).map(u => (
+              <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer">
+                <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} />
+                <span className="text-sm text-slate-700 dark:text-slate-200">{u.name}</span>
+                <span className="text-xs text-slate-400">{u.email}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">취소</button>
+          <button onClick={() => onSave(visibility, visibility === 'private' ? selected : [])} disabled={saving}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">저장</button>
+        </div>
+      </div>
     </div>
   )
 }
