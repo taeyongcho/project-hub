@@ -15,6 +15,7 @@ import EmailSettings from './pages/EmailSettings'
 import Whiteboard from './pages/Whiteboard'
 import Whiteboards from './pages/Whiteboards'
 import SystemLinks from './pages/SystemLinks'
+import Chat from './pages/Chat'
 import NotFound from './pages/NotFound'
 import ServerError from './pages/ServerError'
 
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="whiteboards" element={<Whiteboards />} />
           <Route path="whiteboard/:boardId" element={<Whiteboard />} />
           <Route path="system-links" element={<SystemLinks />} />
+          <Route path="chat" element={<Chat />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

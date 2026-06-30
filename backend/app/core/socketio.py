@@ -63,6 +63,22 @@ async def handle_delta(sid, data):
         await sio.emit('delta', data, room=f'board_{board_id}', skip_sid=sid)
 
 
+@sio.on('join_channel')
+async def join_channel(sid, data):
+    """채팅 채널 방 입장"""
+    channel = data.get('channel')
+    if channel:
+        await sio.enter_room(sid, f'chat_{channel}')
+
+
+@sio.on('leave_channel')
+async def leave_channel(sid, data):
+    """채팅 채널 방 퇴장"""
+    channel = data.get('channel')
+    if channel:
+        await sio.leave_room(sid, f'chat_{channel}')
+
+
 @sio.on('draw')
 async def handle_draw(sid, data):
     """그리기 이벤트를 같은 보드의 모든 사용자에게 전송"""

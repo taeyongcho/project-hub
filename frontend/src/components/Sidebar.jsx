@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server } from 'lucide-react'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare } from 'lucide-react'
 import useAuth from '../store/auth'
 import { useTheme } from '../store/theme'
 import api from '../api/client'
@@ -14,6 +14,7 @@ const TEAM_NAV = [
   { to: '/tasks',     icon: CheckCircle, label: '할 일'   },
   { to: '/reports',   icon: BarChart3, label: '보고서'  },
   { to: '/whiteboards', icon: PenTool, label: '화이트보드' },
+  { to: '/chat', icon: MessageSquare, label: '채팅' },
 ]
 
 const MY_NAV = [
