@@ -14,8 +14,16 @@ const TEAM_NAV = [
   { to: '/tasks',     icon: CheckCircle, label: '할 일'   },
   { to: '/reports',   icon: BarChart3, label: '보고서'  },
   { to: '/whiteboards', icon: PenTool, label: '화이트보드' },
-  { to: '/chat', icon: MessageSquare, label: '채팅' },
 ]
+
+// 채팅은 별도 팝업 창으로 (메인 화면을 가리지 않음)
+const CHAT_W = 440, CHAT_H = 680
+function openChatPopup() {
+  const left = Math.max(0, Math.round((window.screen.width - CHAT_W) / 2))
+  const top = Math.max(0, Math.round((window.screen.height - CHAT_H) / 2))
+  window.open('/chat-popup', 'projecthub_chat',
+    `width=${CHAT_W},height=${CHAT_H},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`)
+}
 
 const MY_NAV = [
   { to: '/emails',  icon: Mail, label: '내 이메일' },
@@ -105,13 +113,20 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
             <NavLink key={item.to} to={item.to} className={navLinkCls}>
               <item.icon size={18} />
               <span>{item.label}</span>
-              {item.to === '/chat' && chatUnread?.total > 0 && (
-                <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
-                  {chatUnread.total}
-                </span>
-              )}
             </NavLink>
           ))}
+          {/* 채팅: 클릭 시 별도 팝업 창 */}
+          <button onClick={openChatPopup}
+            className="w-full flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+            style={{ width: 'calc(100% - 1rem)' }}>
+            <MessageSquare size={18} />
+            <span>채팅</span>
+            {chatUnread?.total > 0 && (
+              <span className="ml-auto text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                {chatUnread.total}
+              </span>
+            )}
+          </button>
 
           {/* 프로젝트 목록 */}
           {projects?.length > 0 && (
