@@ -49,10 +49,18 @@ async def join_board(sid, data):
 
 @sio.on('sync')
 async def handle_sync(sid, data):
-    """보드 전체 상태를 같은 보드의 다른 사용자에게 전송"""
+    """보드 전체 상태를 같은 보드의 다른 사용자에게 전송 (초기/폴백)"""
     board_id = data.get('boardId')
     if board_id:
         await sio.emit('sync', data, room=f'board_{board_id}', skip_sid=sid)
+
+
+@sio.on('delta')
+async def handle_delta(sid, data):
+    """변경분(추가/수정 upserts, 삭제 deletes)만 전송"""
+    board_id = data.get('boardId')
+    if board_id:
+        await sio.emit('delta', data, room=f'board_{board_id}', skip_sid=sid)
 
 
 @sio.on('draw')

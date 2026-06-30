@@ -79,7 +79,8 @@ export default function Whiteboard() {
   const trRef = useRef(null)
   const shapeRefs = useRef({})
   const socketRef = useRef(null)
-  const lastSyncRef = useRef('') // 마지막으로 주고받은 상태 (에코 방지)
+  const lastSyncRef = useRef('') // 마지막으로 주고받은 상태 JSON (에코 방지)
+  const prevObjectsRef = useRef([]) // 마지막 전송/수신 시점의 오브젝트 배열 (delta 계산용)
   const syncTimer = useRef(null)
   const cursorThrottle = useRef(0)
 
@@ -129,7 +130,11 @@ export default function Whiteboard() {
     if (!board || !user || initialLoadRef.current) return
     initialLoadRef.current = true
     initBoard(board.id, board.name)
-    if (board.objects) setObjects(board.objects)
+    if (board.objects) {
+      setObjects(board.objects)
+      prevObjectsRef.current = board.objects
+      lastSyncRef.current = JSON.stringify(board.objects)
+    }
     // 로드 완료 표시 (초기 setObjects가 자동저장 트리거하지 않도록)
     setTimeout(() => { loadedRef.current = true }, 100)
   }, [board, user])
@@ -169,28 +174,45 @@ export default function Whiteboard() {
       console.error('[SOCKET] 연결 오류', err.message)
     })
 
-    // 다른 사용자의 전체 상태 수신
+    // 새 댓글 알림 + 에코방지 기록 + 상태 반영 공통 처리
+    const applyIncoming = (nextObjects) => {
+      try {
+        const prevText = {}
+        for (const o of useBoard.getState().objects) {
+          if (o.type === 'comment') prevText[o.id] = o.text || ''
+        }
+        for (const c of nextObjects) {
+          if (c.type !== 'comment' || !c.text || c.author === user.name) continue
+          if ((prevText[c.id] || '') === c.text) continue
+          if (c.text.includes(`@${user.name}`))
+            toast(`💬 ${c.author}님이 회원님을 언급했습니다`, { description: c.text })
+          else
+            toast(`💬 ${c.author}님의 새 댓글`, { description: c.text.slice(0, 40) })
+        }
+      } catch {}
+      lastSyncRef.current = JSON.stringify(nextObjects)
+      prevObjectsRef.current = nextObjects
+      setObjects(nextObjects)
+    }
+
+    // 전체 상태 수신 (초기/폴백)
     socket.on('sync', (data) => {
-      if (data.objects) {
-        // 댓글 추가/변경 감지 → 실시간 알림 (멘션이면 강조)
-        try {
-          const prevText = {}
-          for (const o of useBoard.getState().objects) {
-            if (o.type === 'comment') prevText[o.id] = o.text || ''
-          }
-          for (const c of data.objects) {
-            if (c.type !== 'comment' || !c.text || c.author === user.name) continue
-            if ((prevText[c.id] || '') === c.text) continue // 변화 없음
-            if (c.text.includes(`@${user.name}`))
-              toast(`💬 ${c.author}님이 회원님을 언급했습니다`, { description: c.text })
-            else
-              toast(`💬 ${c.author}님의 새 댓글`, { description: c.text.slice(0, 40) })
-          }
-        } catch {}
-        // 받은 상태를 기록해 두면, 이 상태로 인한 내 broadcast 효과가 다시 쏘지 않음
-        lastSyncRef.current = JSON.stringify(data.objects)
-        setObjects(data.objects)
-      }
+      if (data.objects) applyIncoming(data.objects)
+    })
+
+    // 변경분 수신 → 병합 적용
+    socket.on('delta', (data) => {
+      const cur = useBoard.getState().objects
+      const delSet = new Set(data.deletes || [])
+      const upsertMap = new Map((data.upserts || []).map(o => [o.id, o]))
+      // 기존 순서 유지하며 삭제/수정 반영
+      const merged = cur
+        .filter(o => !delSet.has(o.id))
+        .map(o => upsertMap.has(o.id) ? upsertMap.get(o.id) : o)
+      // 신규(기존에 없던) upsert는 뒤에 추가
+      const existing = new Set(cur.map(o => o.id))
+      for (const u of (data.upserts || [])) if (!existing.has(u.id)) merged.push(u)
+      applyIncoming(merged)
     })
 
     socket.on('user_joined', (data) => {
@@ -217,16 +239,27 @@ export default function Whiteboard() {
     return () => { socket.disconnect(); socketRef.current = null }
   }, [boardId, user?.id, user?.name])
 
-  // 로컬 변경을 다른 사용자에게 브로드캐스트 (받은 상태와 같으면 전송 안 함 → 에코 차단)
+  // 로컬 변경을 변경분(delta)만 브로드캐스트 (받은 상태와 같으면 전송 안 함 → 에코 차단)
   useEffect(() => {
     if (!loadedRef.current || !socketRef.current) return
     const serialized = JSON.stringify(objects)
     if (serialized === lastSyncRef.current) return // 원격에서 받은 그대로면 되쏘지 않음
+
+    // 직전 상태와 비교해 추가/수정/삭제만 추출
+    const prev = prevObjectsRef.current || []
+    const prevMap = new Map(prev.map(o => [o.id, JSON.stringify(o)]))
+    const curIds = new Set(objects.map(o => o.id))
+    const upserts = objects.filter(o => prevMap.get(o.id) !== JSON.stringify(o))
+    const deletes = prev.filter(o => !curIds.has(o.id)).map(o => o.id)
+
     lastSyncRef.current = serialized
+    prevObjectsRef.current = objects
+
+    if (upserts.length === 0 && deletes.length === 0) return
     if (syncTimer.current) clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => {
-      socketRef.current?.emit('sync', { boardId, objects })
-    }, 150)
+      socketRef.current?.emit('delta', { boardId, upserts, deletes })
+    }, 120)
   }, [objects])
 
   // Transformer를 선택된 오브젝트에 연결
