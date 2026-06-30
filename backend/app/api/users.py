@@ -21,17 +21,40 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class ProfileUpdate(BaseModel):
+    name: str | None = None
+    avatar_emoji: str | None = None
+    avatar_color: str | None = None
+
+
+def _u(u):
+    return {"id": u.id, "name": u.name, "email": u.email, "role": u.role,
+            "avatar_emoji": getattr(u, "avatar_emoji", "🙂"), "avatar_color": getattr(u, "avatar_color", "#3b82f6")}
+
+
 @router.get("/me")
 async def me(current_user=Depends(get_current_user)):
-    return {"id": current_user.id, "name": current_user.name,
-            "email": current_user.email, "role": current_user.role}
+    return _u(current_user)
+
+
+@router.patch("/me/profile")
+async def update_profile(body: ProfileUpdate, db: AsyncSession = Depends(get_db),
+                         current_user=Depends(get_current_user)):
+    if body.name is not None and body.name.strip():
+        current_user.name = body.name.strip()[:50]
+    if body.avatar_emoji is not None:
+        current_user.avatar_emoji = body.avatar_emoji[:16]
+    if body.avatar_color is not None:
+        current_user.avatar_color = body.avatar_color[:20]
+    await db.commit()
+    await db.refresh(current_user)
+    return _u(current_user)
 
 
 @router.get("")
 async def list_users(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     users = await get_all_users(db)
-    return [{"id": u.id, "name": u.name, "email": u.email,
-             "role": u.role, "is_active": u.is_active} for u in users]
+    return [{**_u(u), "is_active": u.is_active} for u in users]
 
 
 @router.post("")

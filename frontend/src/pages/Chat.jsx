@@ -5,6 +5,7 @@ import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Papercli
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
+import Avatar from '../components/Avatar'
 
 function dmChannel(a, b) {
   const [lo, hi] = [a, b].sort((x, y) => x - y)
@@ -229,7 +230,7 @@ export default function Chat() {
             const ch = dmChannel(user.id, u.id)
             return (
               <ChannelItem key={u.id} active={channel === ch} onClick={() => pick(ch, u.name)}
-                icon={<span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: `hsl(${(u.id * 137) % 360},60%,50%)` }}>{u.name[0]}</span>}
+                icon={<Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={20} />}
                 label={u.name} badge={unread?.channels?.[ch]} />
             )
           })}
@@ -261,7 +262,10 @@ export default function Chat() {
             const showName = i === 0 || messages[i - 1].sender_id !== m.sender_id
             const isSticker = m.attachment?.sticker
             return (
-              <div key={m.id} className={`group flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div key={m.id} className={`group flex gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                {!mine && (showName
+                  ? <Avatar emoji={m.sender_avatar} color={m.sender_color} size={28} />
+                  : <span className="w-7 flex-shrink-0" />)}
                 <div className={`${isPopup ? 'max-w-[85%]' : 'max-w-[70%]'} ${mine ? 'items-end' : 'items-start'} flex flex-col relative`}>
                   {showName && !mine && <span className="text-xs text-slate-500 mb-0.5 ml-1">{m.sender_name}</span>}
 

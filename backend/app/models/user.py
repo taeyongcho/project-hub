@@ -12,6 +12,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(256))
     role: Mapped[str] = mapped_column(String(20), default="member")  # admin / member / viewer
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    avatar_emoji: Mapped[str] = mapped_column(String(16), default="🙂")
+    avatar_color: Mapped[str] = mapped_column(String(20), default="#3b82f6")
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     tasks = relationship("Task", foreign_keys="Task.assigned_to_id", back_populates="assignee")

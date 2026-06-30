@@ -62,12 +62,15 @@ async def _can_access_channel(channel: str, user: User, db: AsyncSession) -> boo
     return False
 
 
-async def _serialize(m: ChatMessage, name_map: dict) -> dict:
+async def _serialize(m: ChatMessage, user_map: dict) -> dict:
+    u = user_map.get(m.sender_id, {})
     return {
         "id": m.id,
         "channel": m.channel,
         "sender_id": m.sender_id,
-        "sender_name": name_map.get(m.sender_id, "?"),
+        "sender_name": u.get("name", "?"),
+        "sender_avatar": u.get("avatar_emoji", "🙂"),
+        "sender_color": u.get("avatar_color", "#3b82f6"),
         "content": m.content,
         "attachment": m.attachment,
         "reply_to": m.reply_to,
@@ -108,7 +111,8 @@ async def list_channels(db: AsyncSession = Depends(get_db), current_user: User =
     proj_rows = await db.execute(select(Project).where(Project.status == "active"))
     projects = [{"id": p.id, "name": p.name, "color": p.color} for p in proj_rows.scalars().all()]
     user_rows = await db.execute(select(User).where(User.is_active == True, User.id != current_user.id))
-    users = [{"id": u.id, "name": u.name, "role": u.role} for u in user_rows.scalars().all()]
+    users = [{"id": u.id, "name": u.name, "role": u.role,
+              "avatar_emoji": u.avatar_emoji, "avatar_color": u.avatar_color} for u in user_rows.scalars().all()]
     return {"projects": projects, "users": users}
 
 
@@ -179,11 +183,11 @@ async def get_messages(channel: str = Query(...), db: AsyncSession = Depends(get
     msgs = list(reversed(rows.scalars().all()))
     # 발신자 이름 매핑
     sender_ids = list({m.sender_id for m in msgs})
-    name_map = {}
+    user_map = {}
     if sender_ids:
         urows = await db.execute(select(User).where(User.id.in_(sender_ids)))
-        name_map = {u.id: u.name for u in urows.scalars().all()}
-    return [await _serialize(m, name_map) for m in msgs]
+        user_map = {u.id: {"name": u.name, "avatar_emoji": u.avatar_emoji, "avatar_color": u.avatar_color} for u in urows.scalars().all()}
+    return [await _serialize(m, user_map) for m in msgs]
 
 
 @router.post("/messages")
@@ -199,7 +203,7 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
-    payload = await _serialize(msg, {current_user.id: current_user.name})
+    payload = await _serialize(msg, {current_user.id: {"name": current_user.name, "avatar_emoji": current_user.avatar_emoji, "avatar_color": current_user.avatar_color}})
     # 같은 채널 방의 모든 접속자에게 실시간 전송
     await sio.emit("chat_message", payload, room=f"chat_{body.channel}")
     return payload

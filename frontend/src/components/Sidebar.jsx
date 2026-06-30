@@ -7,6 +7,8 @@ import { useTheme } from '../store/theme'
 import api from '../api/client'
 import SearchModal from './SearchModal'
 import NotificationPanel from './NotificationPanel'
+import Avatar from './Avatar'
+import ProfileModal from './ProfileModal'
 
 const TEAM_NAV = [
   { to: '/dashboard', icon: LayoutGrid, label: '대시보드' },
@@ -40,6 +42,7 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
   const { user, logout } = useAuth()
   const { isDark, toggle: toggleTheme } = useTheme()
   const navigate = useNavigate()
+  const [showProfile, setShowProfile] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
 
@@ -89,10 +92,15 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
   return (
     <>
       <aside className="w-56 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full flex-shrink-0 relative">
-        {/* 로고 */}
-        <div className="px-4 py-3.5 border-b border-slate-100 dark:border-slate-800">
-          <div className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Project Hub</div>
-          <div className="text-xs text-slate-400 mt-0.5 font-medium">{user?.name}</div>
+        {/* 로고 + 내 캐릭터 */}
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+          <button onClick={() => setShowProfile(true)} title="내 캐릭터 변경" className="hover:scale-105 transition-transform">
+            <Avatar emoji={user?.avatar_emoji} color={user?.avatar_color} size={38} />
+          </button>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">{user?.name}</div>
+            <div className="text-[11px] text-slate-400">Project Hub</div>
+          </div>
         </div>
 
         {/* 검색 */}
@@ -253,6 +261,7 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
           onSelectTask={id => { onSelectTask(id); setShowSearch(false) }}
         />
       )}
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
     </>
   )
 })

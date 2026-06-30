@@ -17,4 +17,5 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
         raise HTTPException(status_code=403, detail="비활성화된 계정입니다.")
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer",
-            "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role}}
+            "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role,
+                     "avatar_emoji": user.avatar_emoji, "avatar_color": user.avatar_color}}

@@ -55,6 +55,12 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reactions JSON DEFAULT '{}'"
         ))
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_emoji VARCHAR(16) DEFAULT '🙂'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_color VARCHAR(20) DEFAULT '#3b82f6'"
+        ))
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
 

@@ -10,6 +10,12 @@ const useAuth = create(set => ({
     set({ user, token })
   },
 
+  updateUser: (patch) => set(state => {
+    const user = { ...state.user, ...patch }
+    localStorage.setItem('user', JSON.stringify(user))
+    return { user }
+  }),
+
   logout: () => {
     localStorage.removeItem('user')
     localStorage.removeItem('token')
