@@ -172,6 +172,21 @@ export default function Whiteboard() {
     // 다른 사용자의 전체 상태 수신
     socket.on('sync', (data) => {
       if (data.objects) {
+        // 댓글 추가/변경 감지 → 실시간 알림 (멘션이면 강조)
+        try {
+          const prevText = {}
+          for (const o of useBoard.getState().objects) {
+            if (o.type === 'comment') prevText[o.id] = o.text || ''
+          }
+          for (const c of data.objects) {
+            if (c.type !== 'comment' || !c.text || c.author === user.name) continue
+            if ((prevText[c.id] || '') === c.text) continue // 변화 없음
+            if (c.text.includes(`@${user.name}`))
+              toast(`💬 ${c.author}님이 회원님을 언급했습니다`, { description: c.text })
+            else
+              toast(`💬 ${c.author}님의 새 댓글`, { description: c.text.slice(0, 40) })
+          }
+        } catch {}
         // 받은 상태를 기록해 두면, 이 상태로 인한 내 broadcast 효과가 다시 쏘지 않음
         lastSyncRef.current = JSON.stringify(data.objects)
         setObjects(data.objects)
@@ -716,7 +731,7 @@ export default function Whiteboard() {
                 <textarea autoFocus value={commentPopup.text}
                   onChange={(e) => setCommentPopup({ ...commentPopup, text: e.target.value })}
                   onBlur={() => { updateObject(commentPopup.id, { text: commentPopup.text }); setCommentPopup({ ...commentPopup, editing: false }) }}
-                  placeholder="댓글을 입력하세요..."
+                  placeholder="댓글 입력 (@이름 으로 멘션)..."
                   className="w-full h-20 text-sm p-2 border border-slate-200 dark:border-slate-600 rounded-lg outline-none resize-none dark:bg-slate-900 dark:text-white" />
               ) : (
                 <div onClick={() => setCommentPopup({ ...commentPopup, editing: true })}
