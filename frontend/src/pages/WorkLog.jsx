@@ -193,8 +193,8 @@ export default function WorkLog() {
       {view === 'calendar' ? (
         <CalendarView onPickDate={(d) => { handleDateChange(d); setView('edit') }} />
       ) : (
-      <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 space-y-4">
           <MarkdownField label="오늘 완료한 업무" value={form.content} onChange={setField('content')} rows={7} placeholder={'- [x] 완료한 일\n- [ ] 진행 중인 일\n**중요** 표시도 가능'} />
           <MarkdownField label="이슈 / 리스크" value={form.issues} onChange={setField('issues')} rows={4} placeholder={'> 발생한 이슈나 리스크를 기록하세요'} />
           <MarkdownField label="다음 업무 계획" value={form.next_plan} onChange={setField('next_plan')} rows={4} placeholder={'- 내일 처리할 업무'} />

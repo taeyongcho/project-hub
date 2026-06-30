@@ -61,8 +61,8 @@ export default function Reports() {
         ))}
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <div className="col-span-1 space-y-1">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="md:col-span-1 space-y-1">
           {reports.length === 0
             ? <p className="text-slate-400 text-sm px-2 py-4">보고서가 없습니다</p>
             : reports.map(r => (
@@ -81,7 +81,7 @@ export default function Reports() {
           }
         </div>
 
-        <div className="col-span-3">
+        <div className="md:col-span-3">
           {displayReport ? (
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-card">
               <div className="flex items-center justify-between mb-5 pb-5 border-b border-slate-100 dark:border-slate-800">

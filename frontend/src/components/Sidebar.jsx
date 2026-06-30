@@ -22,7 +22,7 @@ const MY_NAV = [
   { to: '/system-links', icon: Server, label: '시스템 바로가기' },
 ]
 
-export default memo(function Sidebar({ onSelectTask }) {
+export default memo(function Sidebar({ onSelectTask, onNavigate }) {
   const { user, logout } = useAuth()
   const { isDark, toggle: toggleTheme } = useTheme()
   const navigate = useNavigate()
@@ -89,7 +89,7 @@ export default memo(function Sidebar({ onSelectTask }) {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-1.5">
+        <nav className="flex-1 overflow-y-auto py-1.5" onClick={onNavigate}>
           {/* 팀 영역 */}
           <div className="px-5 pt-3 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
             팀 공유
