@@ -22,11 +22,11 @@ export default function Reports() {
     onSuccess: data => { qc.invalidateQueries({ queryKey: ['reports'] }); setSelected(data.data) }
   })
 
-  const exportDocx = async id => {
-    const res = await api.get(`/reports/${id}/export/docx`, { responseType: 'blob' })
+  const exportFile = async (id, fmt) => {
+    const res = await api.get(`/reports/${id}/export/${fmt}`, { responseType: 'blob' })
     const url = URL.createObjectURL(res.data)
     const a = document.createElement('a')
-    a.href = url; a.download = `report_${id}.docx`; a.click()
+    a.href = url; a.download = `report_${id}.${fmt}`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -91,10 +91,16 @@ export default function Reports() {
                   </h2>
                   <p className="text-sm text-slate-500 mt-0.5">{displayReport.period}</p>
                 </div>
-                <button onClick={() => exportDocx(displayReport.id)}
-                  className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors font-medium">
-                  Word 저장
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => exportFile(displayReport.id, 'pdf')}
+                    className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                    PDF 저장
+                  </button>
+                  <button onClick={() => exportFile(displayReport.id, 'docx')}
+                    className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                    Word 저장
+                  </button>
+                </div>
               </div>
 
               {displayReport.type === 'weekly'

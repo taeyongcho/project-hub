@@ -189,6 +189,63 @@ async def export_to_docx(db: AsyncSession, report_id: int) -> io.BytesIO:
     return buf
 
 
+async def export_to_pdf(db: AsyncSession, report_id: int) -> io.BytesIO:
+    from weasyprint import HTML
+    r = await get_report(db, report_id)
+    c = r["content"]
+    title = f"{'주간' if r['type'] == 'weekly' else '월간'}업무보고 — {r['period']}"
+
+    def esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    sections = ""
+    if r["type"] == "weekly":
+        sections += f"""
+        <h2>실적 요약</h2>
+        <table>
+          <tr><th>완료 태스크</th><th>지연 태스크</th><th>처리 이메일</th></tr>
+          <tr><td>{c.get('done_tasks',0)}</td><td>{c.get('overdue_tasks',0)}</td><td>{c.get('emails_processed',0)}</td></tr>
+        </table>"""
+        for sec_title, key in [("완료 업무", "completed_work"), ("이슈 / 리스크", "issues"), ("다음 업무 계획", "next_plans")]:
+            items = c.get(key, []) or []
+            lis = "".join(f"<li>{esc(i)}</li>" for i in items) or "<li class='empty'>없음</li>"
+            sections += f"<h2>{sec_title}</h2><ul>{lis}</ul>"
+    else:
+        rows = "".join(
+            f"<tr><td>{esc(u['name'])}</td><td>{u['done']}</td><td>{u['in_progress']}</td></tr>"
+            for u in c.get("user_stats", [])
+        )
+        sections += f"""
+        <h2>월간 요약</h2>
+        <table>
+          <tr><th>완료 태스크</th><th>전체 태스크</th><th>마감 준수율</th></tr>
+          <tr><td>{c.get('total_done_tasks',0)}</td><td>{c.get('total_tasks',0)}</td><td>{c.get('deadline_rate',0)}%</td></tr>
+        </table>
+        <h2>팀원별 현황</h2>
+        <table><tr><th>이름</th><th>완료</th><th>진행중</th></tr>{rows}</table>"""
+
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body {{ font-family: 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif; color: #1e293b; padding: 10px; }}
+      h1 {{ font-size: 22px; border-bottom: 2px solid #334155; padding-bottom: 8px; }}
+      h2 {{ font-size: 15px; margin-top: 22px; color: #334155; }}
+      table {{ border-collapse: collapse; width: 100%; margin-top: 8px; }}
+      th, td {{ border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; font-size: 12px; }}
+      th {{ background: #f1f5f9; }}
+      ul {{ padding-left: 18px; }} li {{ font-size: 12px; margin: 3px 0; }}
+      .empty {{ color: #94a3b8; }}
+      .meta {{ color: #94a3b8; font-size: 11px; margin-top: 20px; }}
+    </style></head><body>
+      <h1>{title}</h1>
+      {sections}
+      <div class="meta">생성: {esc(c.get('generated_at',''))}</div>
+    </body></html>"""
+
+    buf = io.BytesIO()
+    HTML(string=html).write_pdf(buf)
+    buf.seek(0)
+    return buf
+
+
 def _r(r: Report) -> dict:
     if not r:
         return None

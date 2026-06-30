@@ -46,3 +46,12 @@ async def export_docx(report_id: int, db: AsyncSession = Depends(get_db), _=Depe
     buf = await export_to_docx(db, report_id)
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                              headers={"Content-Disposition": f"attachment; filename=report_{report_id}.docx"})
+
+
+@router.get("/{report_id}/export/pdf")
+async def export_pdf(report_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    from fastapi.responses import StreamingResponse
+    from app.services.report import export_to_pdf
+    buf = await export_to_pdf(db, report_id)
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f"attachment; filename=report_{report_id}.pdf"})
