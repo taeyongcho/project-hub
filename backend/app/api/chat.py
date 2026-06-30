@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.socketio import sio
-from app.models.chat import ChatMessage
+from app.models.chat import ChatMessage, ChatGroup
 from app.models.user import User
 from app.models.project import Project
 
@@ -25,22 +25,33 @@ class MessageIn(BaseModel):
     attachment: dict | None = None
 
 
+class GroupIn(BaseModel):
+    name: str
+    member_ids: list[int] = []
+
+
 def dm_channel(a: int, b: int) -> str:
     lo, hi = sorted([a, b])
     return f"dm:{lo}-{hi}"
 
 
-def _can_access_channel(channel: str, user: User) -> bool:
+async def _can_access_channel(channel: str, user: User, db: AsyncSession) -> bool:
     if channel == "team":
         return True
     if channel.startswith("project:"):
-        return True  # 팀 전원 접근 (프로젝트 멤버십 강제하려면 여기서 확인)
+        return True  # 팀 전원 접근
     if channel.startswith("dm:"):
         try:
-            ids = channel[3:].split("-")
-            return str(user.id) in ids
+            return str(user.id) in channel[3:].split("-")
         except Exception:
             return False
+    if channel.startswith("group:"):
+        try:
+            gid = int(channel.split(":")[1])
+        except Exception:
+            return False
+        g = (await db.execute(select(ChatGroup).where(ChatGroup.id == gid))).scalar_one_or_none()
+        return bool(g and user.id in (g.member_ids or []))
     return False
 
 
@@ -92,10 +103,65 @@ async def list_channels(db: AsyncSession = Depends(get_db), current_user: User =
     return {"projects": projects, "users": users}
 
 
+@router.get("/groups")
+async def list_groups(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = await db.execute(select(ChatGroup).order_by(ChatGroup.created_at.desc()))
+    groups = [g for g in rows.scalars().all() if current_user.id in (g.member_ids or [])]
+    # 멤버 이름
+    all_ids = {uid for g in groups for uid in (g.member_ids or [])}
+    name_map = {}
+    if all_ids:
+        urows = await db.execute(select(User).where(User.id.in_(all_ids)))
+        name_map = {u.id: u.name for u in urows.scalars().all()}
+    return [{
+        "id": g.id, "name": g.name, "member_ids": g.member_ids or [],
+        "members": [{"id": uid, "name": name_map.get(uid, "?")} for uid in (g.member_ids or [])],
+        "created_by_id": g.created_by_id,
+    } for g in groups]
+
+
+@router.post("/groups")
+async def create_group(body: GroupIn, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    members = sorted(set(body.member_ids) | {current_user.id})
+    g = ChatGroup(name=body.name.strip() or "새 그룹", member_ids=members, created_by_id=current_user.id)
+    db.add(g)
+    await db.commit()
+    await db.refresh(g)
+    return {"id": g.id, "name": g.name, "member_ids": g.member_ids, "created_by_id": g.created_by_id}
+
+
+@router.patch("/groups/{group_id}")
+async def update_group(group_id: int, body: GroupIn, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    g = (await db.execute(select(ChatGroup).where(ChatGroup.id == group_id))).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="그룹을 찾을 수 없습니다")
+    if current_user.id not in (g.member_ids or []):
+        raise HTTPException(status_code=403, detail="그룹 멤버만 변경할 수 있습니다")
+    g.name = body.name.strip() or g.name
+    g.member_ids = sorted(set(body.member_ids) | {g.created_by_id})
+    await db.commit()
+    return {"id": g.id, "name": g.name, "member_ids": g.member_ids}
+
+
+@router.delete("/groups/{group_id}")
+async def delete_group(group_id: int, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    g = (await db.execute(select(ChatGroup).where(ChatGroup.id == group_id))).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="그룹을 찾을 수 없습니다")
+    if g.created_by_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="생성자만 삭제할 수 있습니다")
+    await db.delete(g)
+    await db.commit()
+    return {"message": "삭제됨"}
+
+
 @router.get("/messages")
 async def get_messages(channel: str = Query(...), db: AsyncSession = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
-    if not _can_access_channel(channel, current_user):
+    if not await _can_access_channel(channel, current_user, db):
         raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
     rows = await db.execute(
         select(ChatMessage).where(ChatMessage.channel == channel)
@@ -114,7 +180,7 @@ async def get_messages(channel: str = Query(...), db: AsyncSession = Depends(get
 @router.post("/messages")
 async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
-    if not _can_access_channel(body.channel, current_user):
+    if not await _can_access_channel(body.channel, current_user, db):
         raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
     if not body.content.strip() and not body.attachment:
         raise HTTPException(status_code=400, detail="빈 메시지")

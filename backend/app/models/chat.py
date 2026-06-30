@@ -3,6 +3,16 @@ from datetime import datetime
 from app.core.database import Base
 
 
+class ChatGroup(Base):
+    __tablename__ = "chat_groups"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False)
+    member_ids = Column(JSON, default=list)  # 그룹 멤버 user_id 목록 (생성자 포함)
+    created_by_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 

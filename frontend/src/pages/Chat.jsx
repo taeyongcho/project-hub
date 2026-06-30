@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -61,9 +61,16 @@ export default function Chat() {
   const bottomRef = useRef(null)
   const channelRef = useRef(channel)
 
+  const [showGroupModal, setShowGroupModal] = useState(false)
+
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
     queryFn: () => api.get('/chat/channels').then(r => r.data)
+  })
+
+  const { data: groups = [] } = useQuery({
+    queryKey: ['chat-groups'],
+    queryFn: () => api.get('/chat/groups').then(r => r.data)
   })
 
   // 소켓 1회 연결
@@ -156,6 +163,17 @@ export default function Chat() {
             <ChannelItem key={p.id} active={channel === `project:${p.id}`}
               onClick={() => pick(`project:${p.id}`, p.name)}
               icon={<span className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />} label={p.name} />
+          ))}
+
+          {/* 그룹 */}
+          <div className="px-4 pt-4 pb-1 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">그룹</span>
+            <button onClick={() => setShowGroupModal(true)} className="text-slate-400 hover:text-blue-600" title="그룹 만들기"><Plus size={14} /></button>
+          </div>
+          {groups.map(g => (
+            <ChannelItem key={g.id} active={channel === `group:${g.id}`}
+              onClick={() => pick(`group:${g.id}`, g.name)}
+              icon={<UsersRound size={16} />} label={`${g.name} (${g.member_ids.length})`} />
           ))}
 
           {/* DM */}
@@ -279,6 +297,60 @@ export default function Chat() {
               <Send size={18} />
             </button>
           </div>
+        </div>
+      </div>
+
+      {showGroupModal && (
+        <GroupModal users={channels?.users || []}
+          onClose={() => setShowGroupModal(false)}
+          onCreated={(g) => {
+            qc.invalidateQueries({ queryKey: ['chat-groups'] })
+            setShowGroupModal(false)
+            pick(`group:${g.id}`, g.name)
+          }} />
+      )}
+    </div>
+  )
+}
+
+function GroupModal({ users, onClose, onCreated }) {
+  const [name, setName] = useState('')
+  const [selected, setSelected] = useState([])
+  const [saving, setSaving] = useState(false)
+  const toggle = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+
+  const create = async () => {
+    if (!name.trim() || selected.length === 0) return
+    setSaving(true)
+    try {
+      const g = await api.post('/chat/groups', { name, member_ids: selected }).then(r => r.data)
+      onCreated(g)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">그룹 만들기</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
+        </div>
+        <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="그룹 이름"
+          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 mb-3" />
+        <div className="text-xs font-medium text-slate-500 mb-1">멤버 초대 ({selected.length}명)</div>
+        <div className="max-h-56 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 mb-4">
+          {users.map(u => (
+            <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer">
+              <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} />
+              <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ background: `hsl(${(u.id * 137) % 360},60%,50%)` }}>{u.name[0]}</span>
+              <span className="text-sm text-slate-700 dark:text-slate-200">{u.name}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">취소</button>
+          <button onClick={create} disabled={!name.trim() || selected.length === 0 || saving}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">만들기</button>
         </div>
       </div>
     </div>
