@@ -194,9 +194,9 @@ export default function Chat() {
   const isPopup = typeof window !== 'undefined' && (window.opener != null || window.location.pathname === '/chat-popup')
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* 채널 목록 */}
-      <div className={`${isPopup ? 'w-44' : 'w-60'} border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col flex-shrink-0`}>
+      <div className={`${isPopup ? 'w-40' : 'w-60'} border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col flex-shrink-0`}>
         <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
           <h1 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><MessageSquare size={20} /> 채팅</h1>
         </div>
@@ -419,8 +419,8 @@ export default function Chat() {
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               onFocus={() => setPicker(null)}
               onPaste={onPaste}
-              placeholder={uploading ? '업로드 중...' : `${channelLabel}에 메시지 보내기... (이미지 붙여넣기 가능)`}
-              className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+              placeholder={uploading ? '업로드 중...' : isPopup ? '메시지 입력...' : `${channelLabel}에 메시지 보내기... (이미지 붙여넣기 가능)`}
+              className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
             <button onClick={send} disabled={!text.trim()}
               className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl transition-colors">
               <Send size={18} />
