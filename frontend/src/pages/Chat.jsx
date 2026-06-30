@@ -66,6 +66,7 @@ export default function Chat() {
   const [replyTo, setReplyTo] = useState(null) // {id, sender_name, preview}
   const [stickerTab, setStickerTab] = useState('emoji') // 'emoji' | 'image'
   const [reactFor, setReactFor] = useState(null) // 반응 팔레트 대상 메시지 id
+  const [aiTyping, setAiTyping] = useState(false)
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
@@ -104,6 +105,20 @@ export default function Chat() {
         setMessages(prev => prev.map(m => m.id === upd.id ? { ...m, reactions: upd.reactions } : m))
       }
     })
+    // AI 스트리밍
+    socket.on('ai_typing', (d) => {
+      if (d.channel === channelRef.current) setAiTyping(d.typing)
+    })
+    socket.on('ai_stream', (d) => {
+      if (d.channel === channelRef.current) {
+        setMessages(prev => prev.map(m => m.id === d.id ? { ...m, content: (m.content || '') + d.delta } : m))
+      }
+    })
+    socket.on('ai_stream_done', (d) => {
+      if (d.channel === channelRef.current) {
+        setMessages(prev => prev.map(m => m.id === d.id ? { ...m, content: d.content, streaming: false } : m))
+      }
+    })
     return () => socket.disconnect()
   }, [user?.id])
 
@@ -117,11 +132,12 @@ export default function Chat() {
     // 읽음 처리
     api.post('/chat/read', { channel }).then(() => qc.invalidateQueries({ queryKey: ['chat-unread'] }))
     setReplyTo(null)
+    setAiTyping(false)
     return () => { socket.emit('leave_channel', { channel }) }
   }, [channel])
 
   // 새 메시지 시 스크롤 하단으로
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, aiTyping])
 
   const sendMsg = async ({ content = '', attachment = null }) => {
     if (!content.trim() && !attachment) return
@@ -352,6 +368,19 @@ export default function Chat() {
               </div>
             )
           })}
+          {aiTyping && (
+            <div className="flex items-center gap-2 text-sm text-slate-400 px-1">
+              <Avatar emoji="🤖" color="#6366f1" size={24} />
+              <span className="flex items-center gap-1">
+                AI 사원이 입력 중
+                <span className="inline-flex gap-0.5">
+                  <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </span>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
 

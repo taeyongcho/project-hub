@@ -228,15 +228,51 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
     return payload
 
 
+async def _build_user_context(db: AsyncSession, user_id: int) -> str:
+    """AI가 참고할 사용자 업무 현황 요약 (태스크/오늘 업무일지)"""
+    from datetime import date
+    from app.models.task import Task
+    from app.models.work_log import WorkLog
+    lines = []
+    # 진행/예정 태스크
+    trows = await db.execute(
+        select(Task).where(Task.assigned_to_id == user_id, Task.status != "done")
+        .order_by(Task.due_date.asc()).limit(15)
+    )
+    tasks = trows.scalars().all()
+    if tasks:
+        st = {"todo": "할일", "in_progress": "진행중", "review": "검토"}
+        lines.append("[내 미완료 업무]")
+        for t in tasks:
+            due = f" (마감 {t.due_date})" if t.due_date else ""
+            lines.append(f"- {t.title} [{st.get(t.status, t.status)}]{due}")
+    # 오늘 업무일지
+    today = date.today()
+    wl = (await db.execute(select(WorkLog).where(
+        WorkLog.user_id == user_id, WorkLog.log_date == today))).scalar_one_or_none()
+    if wl and (wl.content or wl.next_plan):
+        lines.append(f"\n[오늘 업무일지] {today}")
+        if wl.content: lines.append(f"완료: {wl.content[:300]}")
+        if wl.next_plan: lines.append(f"계획: {wl.next_plan[:200]}")
+    if not lines:
+        return ""
+    return ("아래는 현재 사용자의 업무 현황입니다. 관련 질문에 이 정보를 활용해 답하세요.\n"
+            + "\n".join(lines))
+
+
 async def _ai_reply(channel: str):
-    """로컬 LLM으로 AI 사원 답변 생성 후 브로드캐스트 (별도 세션)"""
+    """로컬 LLM으로 AI 사원 답변을 스트리밍 생성·브로드캐스트 (별도 세션)"""
     from app.core.database import AsyncSessionLocal
-    from app.services.llm import generate_reply
+    from app.services.llm import generate_reply_stream
+    room = f"chat_{channel}"
     async with AsyncSessionLocal() as db:
         ai = await _get_ai_user(db)
         if not ai:
             return
-        # 최근 대화 20개를 LLM 컨텍스트로
+        # "입력 중" 표시
+        await sio.emit("ai_typing", {"channel": channel, "typing": True}, room=room)
+
+        # 최근 대화 20개 + 업무 컨텍스트
         rows = await db.execute(
             select(ChatMessage).where(ChatMessage.channel == channel)
             .order_by(ChatMessage.created_at.desc()).limit(20)
@@ -246,13 +282,34 @@ async def _ai_reply(channel: str):
             {"role": "assistant" if m.sender_id == ai.id else "user", "content": m.content}
             for m in msgs if m.content
         ]
-        reply_text = await generate_reply(history)
-        ai_msg = ChatMessage(channel=channel, sender_id=ai.id, content=reply_text, reactions={})
+        try:
+            uid = int(channel[3:])
+        except Exception:
+            uid = None
+        context = await _build_user_context(db, uid) if uid else ""
+
+        # 빈 AI 메시지 생성 → 스트리밍 시작 알림
+        ai_msg = ChatMessage(channel=channel, sender_id=ai.id, content="", reactions={})
         db.add(ai_msg)
         await db.commit()
         await db.refresh(ai_msg)
-        payload = await _serialize(ai_msg, {ai.id: {"name": ai.name, "avatar_emoji": ai.avatar_emoji, "avatar_color": ai.avatar_color}})
-        await sio.emit("chat_message", payload, room=f"chat_{channel}")
+        base = await _serialize(ai_msg, {ai.id: {"name": ai.name, "avatar_emoji": ai.avatar_emoji, "avatar_color": ai.avatar_color}})
+        base["streaming"] = True
+        await sio.emit("chat_message", base, room=room)
+
+        # 토큰 스트리밍
+        full = ""
+        try:
+            async for delta in generate_reply_stream(history, context):
+                full += delta
+                await sio.emit("ai_stream", {"channel": channel, "id": ai_msg.id, "delta": delta}, room=room)
+        finally:
+            await sio.emit("ai_typing", {"channel": channel, "typing": False}, room=room)
+
+        # 최종 내용 저장 + 완료 알림
+        ai_msg.content = full or "(빈 응답)"
+        await db.commit()
+        await sio.emit("ai_stream_done", {"channel": channel, "id": ai_msg.id, "content": ai_msg.content}, room=room)
 
 
 @router.post("/messages/{message_id}/react")
