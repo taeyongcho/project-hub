@@ -31,6 +31,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/500" element={<ServerError />} />
+        <Route path="/chat-popup" element={<Guard><div className="h-screen bg-white dark:bg-slate-950"><Chat /></div></Guard>} />
         <Route path="/" element={<Guard><Layout /></Guard>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -191,10 +191,12 @@ export default function Chat() {
 
   const pick = (ch, label) => { setChannel(ch); setChannelLabel(label) }
 
+  const isPopup = typeof window !== 'undefined' && (window.opener != null || window.location.pathname === '/chat-popup')
+
   return (
     <div className="flex h-full">
       {/* 채널 목록 */}
-      <div className="w-60 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col flex-shrink-0">
+      <div className={`${isPopup ? 'w-44' : 'w-60'} border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col flex-shrink-0`}>
         <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
           <h1 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><MessageSquare size={20} /> 채팅</h1>
         </div>
@@ -236,14 +238,22 @@ export default function Chat() {
 
       {/* 메시지 영역 */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
           <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
             {channel.startsWith('dm:') ? <UsersIcon size={18} /> : <Hash size={18} />}
             {channelLabel}
           </h2>
+          {!isPopup && (
+            <button
+              onClick={() => window.open('/chat-popup', 'projecthub_chat', 'width=440,height=680,menubar=no,toolbar=no,location=no,status=no')}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="작은 창으로 분리">
+              <ExternalLink size={14} /> 새 창
+            </button>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <div className={`flex-1 overflow-y-auto ${isPopup ? 'px-3' : 'px-6'} py-4 space-y-3`}>
           {messages.length === 0 ? (
             <div className="text-center text-slate-400 text-sm py-16">아직 메시지가 없습니다. 첫 메시지를 보내보세요!</div>
           ) : messages.map((m, i) => {
@@ -252,7 +262,7 @@ export default function Chat() {
             const isSticker = m.attachment?.sticker
             return (
               <div key={m.id} className={`group flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] ${mine ? 'items-end' : 'items-start'} flex flex-col relative`}>
+                <div className={`${isPopup ? 'max-w-[85%]' : 'max-w-[70%]'} ${mine ? 'items-end' : 'items-start'} flex flex-col relative`}>
                   {showName && !mine && <span className="text-xs text-slate-500 mb-0.5 ml-1">{m.sender_name}</span>}
 
                   {/* 답글 인용 */}
@@ -288,7 +298,7 @@ export default function Chat() {
 
                       {/* 텍스트 */}
                       {m.content && (isEmojiOnly(m.content) ? (
-                        <div className="text-5xl leading-none px-1 py-1 select-none">{m.content}</div>
+                        <div className="text-3xl leading-none px-1 py-1 select-none">{m.content}</div>
                       ) : (
                         <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
                           mine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
@@ -331,7 +341,7 @@ export default function Chat() {
         </div>
 
         {/* 입력 */}
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative">
+        <div className={`${isPopup ? 'px-3' : 'px-6'} py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative`}>
           {/* 이모지 피커 */}
           {picker === 'emoji' && (
             <div className="absolute bottom-full left-6 mb-2 w-80 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-3 z-50">
