@@ -55,6 +55,7 @@ services:
     volumes:
       - ./backend:/app
       - email_storage:/app/emails
+      - chat_uploads:/app/uploads
 
   frontend:
     build: ./frontend
@@ -81,3 +82,4 @@ volumes:
   postgres_data:
   redis_data:
   email_storage:
+  chat_uploads:

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -20,7 +20,13 @@ const EMOJI_GROUPS = {
 }
 
 // 큰 스티커 (이모지만 있는 메시지는 크게 = 스티커)
-const STICKERS = ['🎉','👍','❤️','😂','🔥','💯','🙏','👏','🚀','✅','💪','🥳','😎','🤝','☕','⭐','💡','😴','🎊','👀','🫡','🆗','💢','😭']
+const STICKERS = [
+  '🎉','👍','❤️','😂','🔥','💯','🙏','👏','🚀','✅','💪','🥳','😎','🤝','☕','⭐',
+  '💡','😴','🎊','👀','🫡','🆗','💢','😭','🤣','😍','🥰','😅','😱','🤯','🤔','😏',
+  '🙌','🤙','✌️','👌','🤞','🫶','💖','💔','💀','👻','🤖','🎯','📌','📣','⏰','🍻',
+  '🍕','🍔','🎂','🍰','🎁','💰','📈','📉','🐶','🐱','🦄','🌈','☀️','🌙','⚡','❄️',
+  '🥹','🫠','😇','🤩','🥳','🤗','🙇','💁','🤷','🙆','🙅','💃','🕺','👑','🏆','🎮',
+]
 
 // 메시지가 이모지로만 이루어졌는지(=스티커) 판별
 function isEmojiOnly(s) {
@@ -29,6 +35,18 @@ function isEmojiOnly(s) {
   if (!stripped) return false
   // 이모지/변형선택자/ZWJ만 남는지
   return /^(\p{Extended_Pictographic}|️|‍)+$/u.test(stripped) && [...stripped].length <= 6
+}
+
+const fmtSize = (b) => b > 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(b / 1024))}KB`
+
+// URL을 클릭 가능한 링크로 변환
+function linkify(text) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g)
+  return parts.map((p, i) =>
+    /^https?:\/\//.test(p)
+      ? <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="underline break-all">{p}</a>
+      : p
+  )
 }
 
 export default function Chat() {
@@ -74,9 +92,9 @@ export default function Chat() {
   // 새 메시지 시 스크롤 하단으로
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  const sendContent = async (content) => {
-    if (!content.trim()) return
-    const msg = await api.post('/chat/messages', { channel, content }).then(r => r.data)
+  const sendMsg = async ({ content = '', attachment = null }) => {
+    if (!content.trim() && !attachment) return
+    const msg = await api.post('/chat/messages', { channel, content, attachment }).then(r => r.data)
     setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
   }
 
@@ -85,12 +103,40 @@ export default function Chat() {
     if (!content) return
     setText('')
     setPicker(null)
-    await sendContent(content)
+    await sendMsg({ content })
   }
 
   const sendSticker = async (emoji) => {
     setPicker(null)
-    await sendContent(emoji)
+    await sendMsg({ content: emoji })
+  }
+
+  const [uploading, setUploading] = useState(false)
+  const uploadAndSend = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const meta = await api.post('/chat/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+      await sendMsg({ attachment: meta })
+    } catch (e) {
+      const msg = e?.response?.data?.detail || '업로드 실패'
+      alert(msg)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const onPaste = (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const it of items) {
+      if (it.type.startsWith('image/')) {
+        const f = it.getAsFile()
+        if (f) { e.preventDefault(); uploadAndSend(f) }
+      }
+    }
   }
 
   const pick = (ch, label) => { setChannel(ch); setChannelLabel(label) }
@@ -144,13 +190,32 @@ export default function Chat() {
               <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[70%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
                   {showName && !mine && <span className="text-xs text-slate-500 mb-0.5 ml-1">{m.sender_name}</span>}
-                  {isEmojiOnly(m.content) ? (
+
+                  {/* 첨부 */}
+                  {m.attachment && (m.attachment.type?.startsWith('image/') ? (
+                    <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" className="block mb-1">
+                      <img src={m.attachment.url} alt={m.attachment.name} className="max-w-[240px] max-h-60 rounded-xl border border-slate-200 dark:border-slate-700" />
+                    </a>
+                  ) : (
+                    <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" download
+                      className={`flex items-center gap-2 mb-1 px-3 py-2 rounded-xl border ${mine ? 'bg-blue-500/20 border-blue-300' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                      <FileText size={20} className="text-slate-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className={`text-sm font-medium truncate ${mine ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>{m.attachment.name}</div>
+                        <div className={`text-[10px] ${mine ? 'text-blue-100' : 'text-slate-400'}`}>{fmtSize(m.attachment.size || 0)}</div>
+                      </div>
+                      <Download size={15} className={mine ? 'text-blue-100' : 'text-slate-400'} />
+                    </a>
+                  ))}
+
+                  {/* 텍스트 */}
+                  {m.content && (isEmojiOnly(m.content) ? (
                     <div className="text-5xl leading-none px-1 py-1 select-none">{m.content}</div>
                   ) : (
                     <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
                       mine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
-                    }`}>{m.content}</div>
-                  )}
+                    }`}>{linkify(m.content)}</div>
+                  ))}
                   <span className="text-[10px] text-slate-400 mt-0.5 mx-1">{dayjs(m.created_at).format('HH:mm')}</span>
                 </div>
               </div>
@@ -199,10 +264,15 @@ export default function Chat() {
               className={`p-2.5 rounded-xl transition-colors ${picker === 'sticker' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`} title="스티커">
               <Sticker size={18} />
             </button>
+            <label className="p-2.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors" title="파일 첨부">
+              <Paperclip size={18} />
+              <input type="file" className="hidden" onChange={e => { uploadAndSend(e.target.files[0]); e.target.value = '' }} />
+            </label>
             <input value={text} onChange={e => setText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               onFocus={() => setPicker(null)}
-              placeholder={`${channelLabel}에 메시지 보내기...`}
+              onPaste={onPaste}
+              placeholder={uploading ? '업로드 중...' : `${channelLabel}에 메시지 보내기... (이미지 붙여넣기 가능)`}
               className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
             <button onClick={send} disabled={!text.trim()}
               className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl transition-colors">
