@@ -246,6 +246,25 @@ async def _build_user_context(db: AsyncSession, user_id: int) -> str:
         for t in tasks:
             due = f" (마감 {t.due_date})" if t.due_date else ""
             lines.append(f"- {t.title} [{st.get(t.status, t.status)}]{due}")
+    # 진행 중 프로젝트
+    from app.models.project import Project
+    prows = await db.execute(
+        select(Project).where(Project.status == "active").order_by(Project.created_at.desc()).limit(8))
+    projects = prows.scalars().all()
+    if projects:
+        lines.append("\n[진행 중 프로젝트]")
+        for p in projects:
+            lines.append(f"- {p.name}")
+    # 내 미처리 이메일
+    from app.models.email import Email
+    erows = await db.execute(
+        select(Email).where(Email.owner_id == user_id, Email.status.in_(["unread", "pending", "waiting"]))
+        .order_by(Email.date_ts.desc()).limit(8))
+    emails = erows.scalars().all()
+    if emails:
+        lines.append("\n[내 미처리 이메일]")
+        for e in emails:
+            lines.append(f"- {e.subject[:60]} (from {e.from_[:40]}, {e.status})")
     # 오늘 업무일지
     today = date.today()
     wl = (await db.execute(select(WorkLog).where(
@@ -297,19 +316,57 @@ async def _ai_reply(channel: str):
         base["streaming"] = True
         await sio.emit("chat_message", base, room=room)
 
-        # 토큰 스트리밍
+        # 토큰 스트리밍 (액션 태그 [[...]]는 화면에 노출하지 않음)
         full = ""
+        sent = 0
         try:
             async for delta in generate_reply_stream(history, context):
                 full += delta
-                await sio.emit("ai_stream", {"channel": channel, "id": ai_msg.id, "delta": delta}, room=room)
+                display = full.split("[[")[0]
+                if len(display) > sent:
+                    await sio.emit("ai_stream", {"channel": channel, "id": ai_msg.id, "delta": display[sent:]}, room=room)
+                    sent = len(display)
         finally:
             await sio.emit("ai_typing", {"channel": channel, "typing": False}, room=room)
 
+        # 액션 파싱·실행
+        clean, notes = await _run_ai_actions(db, full, uid)
+        final = (clean.strip() or "(빈 응답)")
+        if notes:
+            final += "\n\n" + "\n".join(notes)
+
         # 최종 내용 저장 + 완료 알림
-        ai_msg.content = full or "(빈 응답)"
+        ai_msg.content = final
         await db.commit()
-        await sio.emit("ai_stream_done", {"channel": channel, "id": ai_msg.id, "content": ai_msg.content}, room=room)
+        await sio.emit("ai_stream_done", {"channel": channel, "id": ai_msg.id, "content": final}, room=room)
+
+
+async def _run_ai_actions(db: AsyncSession, raw: str, uid: int | None):
+    """AI 응답에서 [[DONE:제목]] 액션을 실행하고 (표시용 텍스트, 결과 메모) 반환"""
+    import re
+    from datetime import datetime
+    from app.models.task import Task
+    notes = []
+    titles = re.findall(r"\[\[DONE:(.+?)\]\]", raw)
+    clean = re.sub(r"\[\[DONE:.+?\]\]", "", raw)
+    clean = re.sub(r"\[\[.*$", "", clean, flags=re.S)      # 미완성 태그 제거
+    clean = re.sub(r"[\[\]]+\s*$", "", clean.rstrip())     # 끝에 남은 대괄호 정리
+    if uid and titles:
+        rows = await db.execute(
+            select(Task).where(Task.assigned_to_id == uid, Task.status != "done"))
+        tasks = rows.scalars().all()
+        for title in titles:
+            t = title.strip()
+            match = next((x for x in tasks if x.title == t), None) \
+                or next((x for x in tasks if t in x.title or x.title in t), None)
+            if match:
+                match.status = "done"
+                match.done_at = datetime.utcnow()
+                notes.append(f"✅ '{match.title}' 완료 처리했습니다.")
+            else:
+                notes.append(f"⚠️ '{t}' 태스크를 찾지 못했습니다.")
+        await db.commit()
+    return clean, notes
 
 
 @router.post("/messages/{message_id}/react")

@@ -435,6 +435,20 @@ export default function Chat() {
             </div>
           )}
 
+          {/* AI 채널 전용 빠른 액션 */}
+          {channel.startsWith('ai:') && (
+            <div className="flex gap-2 mb-2 flex-wrap">
+              <button onClick={() => sendMsg({ content: "오늘 나눈 대화와 내 업무 현황을 바탕으로 오늘 업무일지 초안을 작성해줘. '완료한 업무', '이슈/리스크', '다음 계획' 세 섹션으로 마크다운으로 정리해줘." })}
+                className="text-xs px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                📝 업무일지 초안 작성
+              </button>
+              <button onClick={() => sendMsg({ content: "내 미완료 업무를 마감 임박순으로 정리해줘." })}
+                className="text-xs px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                📋 내 업무 정리
+              </button>
+            </div>
+          )}
+
           {/* 답글 배너 */}
           {replyTo && (
             <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border-l-2 border-blue-400">
