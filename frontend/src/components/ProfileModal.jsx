@@ -18,6 +18,24 @@ export default function ProfileModal({ onClose }) {
   const [color, setColor] = useState(user?.avatar_color || '#3b82f6')
   const [name, setName] = useState(user?.name || '')
   const [saving, setSaving] = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [curPw, setCurPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [newPw2, setNewPw2] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+
+  const changePw = async () => {
+    if (!curPw || !newPw) { toast.error('비밀번호를 입력하세요'); return }
+    if (newPw !== newPw2) { toast.error('새 비밀번호가 일치하지 않습니다'); return }
+    setPwSaving(true)
+    try {
+      await api.patch('/users/me/password', { current_password: curPw, new_password: newPw })
+      toast.success('비밀번호가 변경되었습니다')
+      setCurPw(''); setNewPw(''); setNewPw2(''); setShowPw(false)
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || '변경 실패')
+    } finally { setPwSaving(false) }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -73,10 +91,33 @@ export default function ProfileModal({ onClose }) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">취소</button>
+        {/* 비밀번호 변경 */}
+        <div className="border-t border-slate-100 dark:border-slate-800 mt-4 pt-3">
+          <button onClick={() => setShowPw(v => !v)}
+            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-medium">
+            🔒 비밀번호 변경 {showPw ? '▲' : '▼'}
+          </button>
+          {showPw && (
+            <div className="space-y-2 mt-2">
+              <input type="password" value={curPw} onChange={e => setCurPw(e.target.value)} placeholder="현재 비밀번호"
+                className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="새 비밀번호"
+                className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="password" value={newPw2} onChange={e => setNewPw2(e.target.value)} placeholder="새 비밀번호 확인"
+                onKeyDown={e => { if (e.key === 'Enter') changePw() }}
+                className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              <button onClick={changePw} disabled={pwSaving}
+                className="w-full py-2 text-sm bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg font-medium">
+                비밀번호 변경
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">닫기</button>
           <button onClick={save} disabled={saving}
-            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">저장</button>
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">프로필 저장</button>
         </div>
       </div>
     </div>

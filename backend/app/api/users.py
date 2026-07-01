@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from app.core.database import get_db
-from app.core.security import get_current_user, require_admin, hash_password
+from app.core.security import get_current_user, require_admin, hash_password, verify_password
 from app.services.user import get_all_users, get_user_by_email, create_user, update_user, deactivate_user
 
 router = APIRouter(prefix="/users", tags=["사용자"])
@@ -27,6 +27,11 @@ class ProfileUpdate(BaseModel):
     avatar_color: str | None = None
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
 def _u(u):
     return {"id": u.id, "name": u.name, "email": u.email, "role": u.role,
             "avatar_emoji": getattr(u, "avatar_emoji", "🙂"), "avatar_color": getattr(u, "avatar_color", "#3b82f6")}
@@ -49,6 +54,18 @@ async def update_profile(body: ProfileUpdate, db: AsyncSession = Depends(get_db)
     await db.commit()
     await db.refresh(current_user)
     return _u(current_user)
+
+
+@router.patch("/me/password")
+async def change_password(body: PasswordChange, db: AsyncSession = Depends(get_db),
+                         current_user=Depends(get_current_user)):
+    if not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다")
+    if len(body.new_password) < 1:
+        raise HTTPException(status_code=400, detail="새 비밀번호를 입력하세요")
+    current_user.password_hash = hash_password(body.new_password)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("")
