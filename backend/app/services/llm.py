@@ -7,6 +7,11 @@ import httpx
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://host.docker.internal:1234/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen/qwen3-8b")
 
+# Claude API (설정 시 우선 사용)
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")
+USE_CLAUDE = bool(ANTHROPIC_API_KEY)
+
 SYSTEM_PROMPT = (
     "당신은 'AI 사원'이라는 이름의 친절한 사내 업무 비서입니다. "
     "한국어로 간결하고 정중하게 답합니다. 업무, 일정, 문서 작성, 아이디어 정리 등을 돕습니다. "
@@ -28,9 +33,36 @@ def _strip_think(raw: str) -> str:
     return raw
 
 
+async def _claude_stream(history: list[dict], system: str):
+    """Claude API 스트리밍"""
+    from anthropic import AsyncAnthropic
+    # 첫 메시지는 user여야 함 → 앞쪽 assistant 제거
+    msgs = [{"role": m["role"], "content": m["content"]} for m in history if m.get("content")]
+    while msgs and msgs[0]["role"] != "user":
+        msgs.pop(0)
+    if not msgs:
+        yield "무엇을 도와드릴까요?"
+        return
+    client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    try:
+        async with client.messages.stream(
+            model=ANTHROPIC_MODEL, max_tokens=1024, system=system, messages=msgs
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+    except Exception as e:
+        yield f"⚠️ Claude API 오류: {type(e).__name__} — API 키/모델을 확인해주세요."
+
+
 async def generate_reply_stream(history: list[dict], context: str = ""):
     """토큰 단위로 가시 텍스트 증분(delta)을 yield하는 스트리밍 생성기"""
     system = SYSTEM_PROMPT + (("\n\n" + context) if context else "")
+
+    # Claude API 우선
+    if USE_CLAUDE:
+        async for d in _claude_stream(history, system):
+            yield d
+        return
     payload = {
         "model": LLM_MODEL,
         "messages": [{"role": "system", "content": system}] + history,
