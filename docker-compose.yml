@@ -14,8 +14,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5432:5432"   # 로컬에서만 접근 (네트워크 노출 차단)
+    # 호스트 포트 노출 안 함 (백엔드가 내부 네트워크로 접근) — 서버 기존 Postgres와 충돌 방지
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U projecthub -d projecthub"]
       interval: 5s
