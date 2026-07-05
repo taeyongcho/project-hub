@@ -1,14 +1,59 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
-from datetime import datetime, timedelta
+from sqlalchemy import select, func, and_, or_
+from datetime import datetime, timedelta, date
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.task import Task
-from app.models.project import Project
+from app.models.project import Project, Milestone
 from app.models.user import User
 
 router = APIRouter(prefix="/dashboard", tags=["대시보드"])
+
+
+@router.get("/calendar")
+async def calendar(
+    start: str = Query(...),  # YYYY-MM-DD
+    end: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """기간 내 마감/시작 태스크 + 마일스톤 반환 (캘린더용)"""
+    try:
+        d_start = date.fromisoformat(start)
+        d_end = date.fromisoformat(end)
+    except ValueError:
+        return {"tasks": [], "milestones": []}
+
+    task_rows = (await db.execute(
+        select(Task).where(
+            or_(
+                and_(Task.due_date != None, Task.due_date >= d_start, Task.due_date <= d_end),
+                and_(Task.start_date != None, Task.start_date >= d_start, Task.start_date <= d_end),
+            )
+        )
+    )).scalars().all()
+    tasks = [
+        {"id": t.id, "title": t.title, "status": t.status, "priority": t.priority,
+         "due_date": str(t.due_date) if t.due_date else None,
+         "start_date": str(t.start_date) if t.start_date else None,
+         "project_id": t.project_id, "assigned_to_id": t.assigned_to_id}
+        for t in task_rows
+    ]
+
+    ms_rows = (await db.execute(
+        select(Milestone, Project.name, Project.color)
+        .join(Project, Milestone.project_id == Project.id, isouter=True)
+        .where(Milestone.due_date != None, Milestone.due_date >= d_start, Milestone.due_date <= d_end)
+    )).all()
+    milestones = [
+        {"id": m.id, "title": m.title, "due_date": str(m.due_date),
+         "project_id": m.project_id, "project_name": pname, "project_color": pcolor,
+         "is_done": m.is_done}
+        for m, pname, pcolor in ms_rows
+    ]
+
+    return {"tasks": tasks, "milestones": milestones}
 
 
 @router.get("/summary")

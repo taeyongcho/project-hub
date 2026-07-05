@@ -8,6 +8,7 @@ import Emails from './pages/Emails'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
 import Tasks from './pages/Tasks'
+import Calendar from './pages/Calendar'
 import WorkLog from './pages/WorkLog'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="calendar" element={<Calendar />} />
           <Route path="worklog" element={<WorkLog />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />
