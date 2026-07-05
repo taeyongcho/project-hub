@@ -5,10 +5,10 @@ import useAuth from '../store/auth'
 import dayjs from 'dayjs'
 
 const STATUS_OPTIONS = [
-  { value: 'todo', label: '할 일', cls: 'bg-slate-100 text-slate-600' },
-  { value: 'in_progress', label: '진행 중', cls: 'bg-blue-100 text-blue-700' },
-  { value: 'review', label: '검토', cls: 'bg-amber-100 text-amber-700' },
-  { value: 'done', label: '완료', cls: 'bg-emerald-100 text-emerald-700' },
+  { value: 'todo', label: '할 일', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  { value: 'in_progress', label: '진행 중', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  { value: 'review', label: '검토', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  { value: 'done', label: '완료', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
 ]
 const PRIORITY_OPTIONS = [
   { value: 'urgent', label: '긴급', cls: 'text-red-500' },
@@ -100,7 +100,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
   const currentStatus = STATUS_OPTIONS.find(s => s.value === task?.status)
   const currentPriority = PRIORITY_OPTIONS.find(p => p.value === task?.priority)
 
-  const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  const inputCls = 'w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
   return (
     <>
@@ -108,9 +108,9 @@ export default function TaskDetailPanel({ taskId, onClose }) {
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
 
       {/* 패널 */}
-      <div className="fixed right-0 top-0 h-full w-[480px] bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200">
+      <div className="fixed right-0 top-0 h-full w-[480px] bg-white dark:bg-slate-900 shadow-2xl z-50 flex flex-col border-l border-slate-200 dark:border-slate-700">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <div className="flex items-center gap-2">
             {currentStatus && (
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${currentStatus.cls}`}>
@@ -125,7 +125,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
               삭제
             </button>
             <button onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-lg">
+              className="text-slate-400 hover:text-slate-700 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-lg">
               ✕
             </button>
           </div>
@@ -147,12 +147,12 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                     onChange={e => setTitle(e.target.value)}
                     onBlur={() => { update({ title }); setEditTitle(false) }}
                     onKeyDown={e => { if (e.key === 'Enter') { update({ title }); setEditTitle(false) } }}
-                    className="w-full text-xl font-bold text-slate-900 border-b-2 border-blue-500 outline-none bg-transparent pb-1"
+                    className="w-full text-xl font-bold text-slate-900 dark:text-slate-100 border-b-2 border-blue-500 outline-none bg-transparent pb-1"
                   />
                 ) : (
                   <h2
                     onClick={() => setEditTitle(true)}
-                    className={`text-xl font-bold text-slate-900 cursor-text hover:text-blue-600 transition-colors leading-tight ${
+                    className={`text-xl font-bold text-slate-900 dark:text-slate-100 cursor-text hover:text-blue-600 transition-colors leading-tight ${
                       task?.status === 'done' ? 'line-through text-slate-400' : ''
                     }`}
                   >
@@ -245,7 +245,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
 
               {/* 프로젝트 */}
               {project && (
-                <div className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2">
                   <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: project.color }} />
                   <span className="font-medium">{project.name}</span>
                 </div>
@@ -261,12 +261,12 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                     onChange={e => setDesc(e.target.value)}
                     onBlur={() => { update({ description: desc }); setEditDesc(false) }}
                     rows={5}
-                    className="w-full bg-slate-50 border border-blue-300 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none resize-none ring-2 ring-blue-500"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-blue-300 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none resize-none ring-2 ring-blue-500"
                   />
                 ) : (
                   <div
                     onClick={() => setEditDesc(true)}
-                    className="min-h-[80px] bg-slate-50 rounded-xl px-3 py-2.5 text-sm text-slate-600 cursor-text hover:bg-slate-100 transition-colors whitespace-pre-wrap border border-transparent hover:border-slate-200"
+                    className="min-h-[80px] bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 cursor-text hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-pre-wrap border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                   >
                     {task?.description || <span className="text-slate-400">설명 추가...</span>}
                   </div>
@@ -274,7 +274,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
               </div>
 
               {/* 메타 정보 */}
-              <div className="text-xs text-slate-400 space-y-1 border-t border-slate-100 pt-3">
+              <div className="text-xs text-slate-400 space-y-1 border-t border-slate-100 dark:border-slate-800 pt-3">
                 {task?.created_at && <div>생성: {dayjs(task.created_at).format('YYYY-MM-DD HH:mm')}</div>}
                 {task?.done_at && <div>완료: {dayjs(task.done_at).format('YYYY-MM-DD HH:mm')}</div>}
               </div>
@@ -282,7 +282,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
               {/* 댓글 */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                     댓글 {comments.length > 0 && <span className="text-slate-400 font-normal">({comments.length})</span>}
                   </label>
                 </div>
@@ -300,10 +300,10 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-semibold text-slate-700">{author?.name || '알 수 없음'}</span>
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{author?.name || '알 수 없음'}</span>
                             <span className="text-xs text-slate-400">{dayjs(c.created_at).format('MM/DD HH:mm')}</span>
                           </div>
-                          <div className="bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-700 whitespace-pre-wrap">
+                          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
                             {c.content}
                           </div>
                         </div>
@@ -329,7 +329,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                       }}
                       placeholder="댓글 작성... (Ctrl+Enter로 전송)"
                       rows={2}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     />
                   </div>
                 </div>

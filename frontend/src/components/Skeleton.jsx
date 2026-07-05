@@ -3,7 +3,7 @@ import 'react-loading-skeleton/dist/skeleton.css'
 
 export function SkeletonTaskCard() {
   return (
-    <div className="bg-white rounded-lg p-4 border border-slate-200">
+    <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
       <div className="flex justify-between items-start">
         <div className="flex-1">
           <Skeleton width="60%" height={20} className="mb-2" />
@@ -17,7 +17,7 @@ export function SkeletonTaskCard() {
 
 export function SkeletonProjectCard() {
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
           <Skeleton width="70%" height={24} className="mb-2" />
@@ -35,7 +35,7 @@ export function SkeletonProjectCard() {
 
 export function SkeletonUserCard() {
   return (
-    <div className="bg-white rounded-lg p-4 border border-slate-200">
+    <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
       <div className="flex items-center gap-3">
         <Skeleton circle width={40} height={40} />
         <div className="flex-1">

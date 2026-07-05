@@ -8,10 +8,10 @@ dayjs.extend(isBetween)
 dayjs.extend(minMax)
 
 const STATUS_MAP = {
-  todo:        { label: '할 일',  cls: 'bg-slate-100 text-slate-600',  bar: '#94a3b8' },
-  in_progress: { label: '진행 중', cls: 'bg-blue-100 text-blue-700',   bar: '#3b82f6' },
-  review:      { label: '검토',   cls: 'bg-amber-100 text-amber-700',  bar: '#f59e0b' },
-  done:        { label: '완료',   cls: 'bg-emerald-100 text-emerald-700', bar: '#10b981' },
+  todo:        { label: '할 일',  cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',  bar: '#94a3b8' },
+  in_progress: { label: '진행 중', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',   bar: '#3b82f6' },
+  review:      { label: '검토',   cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',  bar: '#f59e0b' },
+  done:        { label: '완료',   cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', bar: '#10b981' },
 }
 
 const PRIORITY_MAP = {
@@ -178,23 +178,23 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
           + 항목 추가
         </button>
         <button onClick={() => exportCSV(allRows, users)}
-          className="text-xs border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded-xl font-medium transition-colors">
+          className="text-xs border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-xl font-medium transition-colors">
           CSV 내보내기
         </button>
         <span className="text-xs text-slate-400 ml-auto">총 {tasks.length}개 · 클릭: 상세 · 더블클릭: 이름수정</span>
       </div>
 
       {/* 본문: 왼쪽 고정 테이블 + 오른쪽 간트 */}
-      <div className="flex flex-1 min-h-0 border border-slate-200 rounded-xl overflow-hidden bg-white">
+      <div className="flex flex-1 min-h-0 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
 
         {/* ── 왼쪽: 고정 테이블 ── */}
-        <div className="flex flex-col flex-shrink-0 border-r border-slate-200" style={{ width: 420 }}>
+        <div className="flex flex-col flex-shrink-0 border-r border-slate-200 dark:border-slate-700" style={{ width: 420 }}>
           {/* 헤더 */}
-          <div className="flex items-center bg-slate-50 border-b border-slate-200 flex-shrink-0" style={{ height: 56 }}>
-            <div className="px-3 text-xs font-semibold text-slate-500 w-14">WBS</div>
-            <div className="flex-1 px-2 text-xs font-semibold text-slate-500">작업명</div>
-            <div className="w-20 px-2 text-xs font-semibold text-slate-500">담당자</div>
-            <div className="w-16 px-2 text-xs font-semibold text-slate-500">상태</div>
+          <div className="flex items-center bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0" style={{ height: 56 }}>
+            <div className="px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 w-14">WBS</div>
+            <div className="flex-1 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400">작업명</div>
+            <div className="w-20 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400">담당자</div>
+            <div className="w-16 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400">상태</div>
           </div>
 
           {/* 루트 추가 행 */}
@@ -221,7 +221,7 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
               return (
                 <div key={row.id}>
                   <div
-                    className="flex items-center border-b border-slate-100 hover:bg-slate-50 group transition-colors"
+                    className="flex items-center border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 group transition-colors"
                     style={{ height: ROW_H }}
                   >
                     {/* WBS 번호 */}
@@ -240,12 +240,12 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
                         <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)}
                           onBlur={() => renameMut.mutate({ id: row.id, title: editTitle })}
                           onKeyDown={e => { if (e.key === 'Enter') renameMut.mutate({ id: row.id, title: editTitle }); if (e.key === 'Escape') setEditingId(null) }}
-                          className="flex-1 border-b border-blue-500 outline-none text-xs text-slate-900 bg-transparent" />
+                          className="flex-1 border-b border-blue-500 outline-none text-xs text-slate-900 dark:text-slate-100 bg-transparent" />
                       ) : childCnt > 0 ? (
                         // 상위 그룹 항목 — 클릭해도 상세 패널 안 열림
                         <span
                           onDoubleClick={() => { setEditingId(row.id); setEditTitle(row.title) }}
-                          className="flex-1 text-xs font-bold text-slate-700 truncate cursor-default select-none"
+                          className="flex-1 text-xs font-bold text-slate-700 dark:text-slate-200 truncate cursor-default select-none"
                           title="더블클릭: 이름 수정"
                         >
                           {row.title}
@@ -256,7 +256,7 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
                           onClick={() => onSelectTask(row.id)}
                           onDoubleClick={() => { setEditingId(row.id); setEditTitle(row.title) }}
                           className={`flex-1 text-xs cursor-pointer hover:text-blue-600 truncate font-medium transition-colors ${
-                            row.status === 'done' ? 'line-through text-slate-400' : isOverdue ? 'text-red-500' : 'text-slate-800'
+                            row.status === 'done' ? 'line-through text-slate-400' : isOverdue ? 'text-red-500' : 'text-slate-800 dark:text-slate-100'
                           }`}
                           title="클릭: 상세보기 · 더블클릭: 이름 수정"
                         >
@@ -278,7 +278,7 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
                       {assignee ? (
                         <div className="flex items-center gap-1">
                           <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[9px] font-bold text-blue-700 flex-shrink-0">{assignee.name[0]}</div>
-                          <span className="text-[10px] text-slate-600 truncate">{assignee.name}</span>
+                          <span className="text-[10px] text-slate-600 dark:text-slate-300 truncate">{assignee.name}</span>
                         </div>
                       ) : <span className="text-[10px] text-slate-300">-</span>}
                     </div>
@@ -308,9 +308,9 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
           <div style={{ width: totalWidth, minWidth: '100%' }}>
 
             {/* 간트 헤더: 월 */}
-            <div className="flex bg-slate-50 border-b border-slate-200 sticky top-0 z-10" style={{ height: 28 }}>
+            <div className="flex bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10" style={{ height: 28 }}>
               {months.map((m, i) => (
-                <div key={i} className="border-r border-slate-200 px-2 flex items-center text-[10px] font-semibold text-slate-500 flex-shrink-0 overflow-hidden"
+                <div key={i} className="border-r border-slate-200 dark:border-slate-700 px-2 flex items-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex-shrink-0 overflow-hidden"
                   style={{ width: m.days * DAY_PX }}>
                   {m.label}
                 </div>
@@ -318,7 +318,7 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
             </div>
 
             {/* 간트 헤더: 일 */}
-            <div className="flex bg-slate-50 border-b border-slate-200 sticky top-7 z-10" style={{ height: 28 }}>
+            <div className="flex bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-7 z-10" style={{ height: 28 }}>
               {Array.from({ length: totalDays }, (_, i) => {
                 const d = ganttStart.add(i, 'day')
                 const isToday = d.isSame(dayjs(), 'day')
@@ -326,7 +326,7 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
                 const isSat = d.day() === 6
                 return (
                   <div key={i}
-                    className={`flex-shrink-0 border-r border-slate-100 flex items-center justify-center text-[9px] font-medium
+                    className={`flex-shrink-0 border-r border-slate-100 dark:border-slate-800 flex items-center justify-center text-[9px] font-medium
                       ${isToday ? 'bg-blue-500 text-white' : isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-slate-400'}`}
                     style={{ width: DAY_PX }}>
                     {d.date() === 1 || i === 0 ? d.format('D') : (d.date() % 5 === 0 ? d.format('D') : '')}
@@ -346,7 +346,7 @@ export default function WBSView({ tasks, projectId, users, onSelectTask }) {
 
               return (
                 <div key={row.id}>
-                  <div className="relative border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                  <div className="relative border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                     style={{ height: ROW_H }}>
 
                     {/* 주말 세로줄 */}
@@ -416,7 +416,7 @@ function AddRow({ level, value, onChange, onConfirm, onCancel, loading }) {
       <input autoFocus value={value} onChange={e => onChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') onConfirm(); if (e.key === 'Escape') onCancel() }}
         placeholder="작업명 입력 후 Enter..."
-        className="flex-1 bg-white border border-blue-300 rounded-lg px-2 py-1 text-xs text-slate-800 outline-none focus:ring-1 focus:ring-blue-400" />
+        className="flex-1 bg-white dark:bg-slate-800 border border-blue-300 rounded-lg px-2 py-1 text-xs text-slate-800 dark:text-slate-100 outline-none focus:ring-1 focus:ring-blue-400" />
       <button onClick={onConfirm} disabled={loading || !value.trim()}
         className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2.5 py-1 rounded-lg font-medium transition-colors">추가</button>
       <button onClick={onCancel}

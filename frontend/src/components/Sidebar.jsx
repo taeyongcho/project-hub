@@ -153,7 +153,7 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
                   to={`/projects/${p.id}`}
                   className={({ isActive }) =>
                     `flex items-center gap-2 mx-2 px-3 py-1.5 rounded-lg text-sm truncate transition-all ${
-                      isActive ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                      isActive ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`
                   }
                 >
@@ -161,6 +161,13 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
                   <span className="truncate">{p.name}</span>
                 </NavLink>
               ))}
+              {projects.filter(p => p.status === 'active').length > 8 && (
+                <NavLink to="/projects"
+                  className="flex items-center gap-2 mx-2 px-3 py-1.5 rounded-lg text-xs text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all">
+                  <span className="w-2 h-2 flex-shrink-0" />
+                  전체 프로젝트 보기 ({projects.filter(p => p.status === 'active').length})
+                </NavLink>
+              )}
             </>
           )}
 

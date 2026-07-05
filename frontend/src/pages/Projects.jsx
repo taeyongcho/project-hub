@@ -92,12 +92,12 @@ export default function Projects() {
     currentPage * itemsPerPage
   )
 
-  const inputCls = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+  const inputCls = 'w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">프로젝트</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">프로젝트</h1>
         <button onClick={() => setShowForm(true)}
           className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
           + 새 프로젝트
@@ -105,8 +105,8 @@ export default function Projects() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl p-5 mb-6 border border-slate-200 shadow-card">
-          <h2 className="text-sm font-semibold text-slate-800 mb-4">새 프로젝트</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 mb-6 border border-slate-200 dark:border-slate-700 shadow-card">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-4">새 프로젝트</h2>
           <div className="grid grid-cols-2 gap-4 mb-4">
             {[
               ['프로젝트명 *', 'name', 'text', '프로젝트 이름'],
@@ -115,7 +115,7 @@ export default function Projects() {
               ['완료 목표일', 'end_date', 'date', ''],
             ].map(([label, key, type, ph]) => (
               <div key={key}>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">{label}</label>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{label}</label>
                 <input type={type} value={form[key]} placeholder={ph}
                   onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
                   className={inputCls} />
@@ -125,7 +125,7 @@ export default function Projects() {
 
           {/* 색상 */}
           <div className="mb-4">
-            <label className="text-xs font-medium text-slate-500 mb-2 block">색상</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 block">색상</label>
             <div className="flex gap-2">
               {COLORS.map(c => (
                 <button key={c} onClick={() => setForm(p => ({ ...p, color: c }))}
@@ -139,7 +139,7 @@ export default function Projects() {
 
           {/* 멤버 선택 */}
           <div className="mb-5">
-            <label className="text-xs font-medium text-slate-500 mb-2 block">
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 block">
               담당자 배정
               {form.member_ids.length > 0 && (
                 <span className="ml-1.5 text-blue-600">{form.member_ids.length}명 선택됨</span>
@@ -155,11 +155,11 @@ export default function Projects() {
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-medium transition-all ${
                       selected
                         ? 'bg-blue-50 border-blue-300 text-blue-700'
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                      selected ? 'bg-blue-200 text-blue-800' : 'bg-slate-200 text-slate-600'
+                      selected ? 'bg-blue-200 text-blue-800' : 'bg-slate-200 text-slate-600 dark:text-slate-300'
                     }`}>
                       {u.name[0]}
                     </span>
@@ -173,7 +173,7 @@ export default function Projects() {
 
           <div className="flex gap-2 justify-end">
             <button onClick={() => { setShowForm(false); setForm(EMPTY_FORM) }}
-              className="text-sm text-slate-500 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
+              className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
             <button
               onClick={() => form.name && createMut.mutate({
                 ...form,
@@ -191,8 +191,8 @@ export default function Projects() {
       {/* 편집 모달 */}
       {editProject && (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setEditProject(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-sm font-semibold text-slate-800 mb-4">프로젝트 수정</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-4">프로젝트 수정</h2>
             <div className="grid grid-cols-2 gap-4 mb-4">
               {[
                 ['프로젝트명 *', 'name', 'text', '프로젝트 이름'],
@@ -201,7 +201,7 @@ export default function Projects() {
                 ['완료 목표일', 'end_date', 'date', ''],
               ].map(([label, key, type, ph]) => (
                 <div key={key}>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">{label}</label>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{label}</label>
                   <input type={type} value={editForm[key]} placeholder={ph}
                     onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
                     className={inputCls} />
@@ -209,7 +209,7 @@ export default function Projects() {
               ))}
             </div>
             <div className="mb-5">
-              <label className="text-xs font-medium text-slate-500 mb-2 block">색상</label>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 block">색상</label>
               <div className="flex gap-2">
                 {COLORS.map(c => (
                   <button key={c} onClick={() => setEditForm(p => ({ ...p, color: c }))}
@@ -222,7 +222,7 @@ export default function Projects() {
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setEditProject(null)}
-                className="text-sm text-slate-500 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
+                className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
               <button
                 onClick={() => editForm.name && editMut.mutate({
                   id: editProject.id,
@@ -293,11 +293,11 @@ const ProjectCard = memo(function ProjectCard({ project: p, onClick, onEdit, onA
 
   return (
     <div onClick={onClick}
-      className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group">
+      className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-card cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: p.color }} />
-          <h3 className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">{p.name}</h3>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{p.name}</h3>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={onEdit}
@@ -305,19 +305,19 @@ const ProjectCard = memo(function ProjectCard({ project: p, onClick, onEdit, onA
             수정
           </button>
           <button onClick={e => { e.stopPropagation(); (onArchive || onReopen)?.() }}
-            className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-medium px-1.5 py-0.5 rounded hover:bg-slate-100">
+            className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-medium px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
             {onArchive ? '완료' : '재개'}
           </button>
         </div>
       </div>
 
-      {p.description && <p className="text-xs text-slate-500 mb-3 line-clamp-2">{p.description}</p>}
+      {p.description && <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2">{p.description}</p>}
 
       <div className="mb-3">
-        <div className="flex justify-between text-xs text-slate-500 mb-1.5 font-medium">
+        <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
           <span>진행률</span><span>{p.progress}%</span>
         </div>
-        <div className="w-full bg-slate-100 rounded-full h-1.5">
+        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
           <div className="h-1.5 rounded-full transition-all" style={{ width: `${p.progress}%`, background: p.color }} />
         </div>
       </div>

@@ -11,10 +11,10 @@ const PRIORITY_MAP = { urgent: '긴급', high: '높음', normal: '보통', low: 
 const PRIORITY_COLORS = { urgent: 'text-red-500', high: 'text-amber-500', normal: 'text-blue-500', low: 'text-slate-400' }
 const STATUS_MAP = { todo: '할 일', in_progress: '진행 중', review: '검토', done: '완료' }
 const STATUS_COLORS = {
-  todo: 'bg-slate-100 text-slate-600',
-  in_progress: 'bg-blue-100 text-blue-700',
-  review: 'bg-amber-100 text-amber-700',
-  done: 'bg-emerald-100 text-emerald-700',
+  todo: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
+  in_progress: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+  review: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+  done: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
 }
 
 export default function Tasks() {
@@ -26,7 +26,7 @@ export default function Tasks() {
   const [form, setForm] = useState({ title: '', priority: 'normal', due_date: '', project_id: '', assigned_to_id: '' })
 
   const params = filter === 'mine' ? `?assigned_to_id=${user?.id}` :
-    filter === 'overdue' ? '?status=todo' : '?status=in_progress'
+    filter === 'overdue' ? '' : '?status=in_progress'
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['all-tasks', filter],
@@ -82,12 +82,12 @@ export default function Tasks() {
     return acc
   }, {})
 
-  const sel = (key, val) => `w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`
+  const sel = (key, val) => `w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">할 일</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">할 일</h1>
         <button onClick={() => setShowForm(true)}
           className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
           + 새 할일
@@ -98,7 +98,7 @@ export default function Tasks() {
         {[['mine','내 할일'],['all','전체 (진행중)'],['overdue','기한 초과']].map(([v, l]) => (
           <button key={v} onClick={() => setFilter(v)}
             className={`text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${
-              filter === v ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              filter === v ? 'bg-slate-900 text-white' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50'
             }`}>
             {l}
           </button>
@@ -106,11 +106,11 @@ export default function Tasks() {
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-2xl p-4 mb-5 border border-slate-200 shadow-card">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 mb-5 border border-slate-200 dark:border-slate-700 shadow-card">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
               placeholder="할일 제목 *"
-              className="col-span-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="col-span-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} className={sel()}>
               <option value="low">낮음</option>
               <option value="normal">보통</option>
@@ -130,7 +130,7 @@ export default function Tasks() {
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)}
-              className="text-sm text-slate-500 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
+              className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
             <button onClick={() => form.title && createMut.mutate({
               ...form,
               project_id: form.project_id ? parseInt(form.project_id) : null,
@@ -169,13 +169,13 @@ export default function Tasks() {
 
                 return (
                   <div key={t.id}
-                    className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-slate-200 hover:shadow-card transition-all group cursor-pointer"
+                    className="flex items-center gap-3 bg-white dark:bg-slate-900 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-700 hover:shadow-card transition-all group cursor-pointer"
                     onClick={() => onSelectTask(t.id)}>
                     <input type="checkbox" checked={t.status === 'done'}
                       onChange={e => { e.stopPropagation(); statusMut.mutate({ id: t.id, status: e.target.checked ? 'done' : 'todo' }) }}
                       onClick={e => e.stopPropagation()}
                       className="w-4 h-4 accent-slate-900 flex-shrink-0 rounded" />
-                    <span className={`flex-1 text-sm font-medium ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                    <span className={`flex-1 text-sm font-medium ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>
                       {t.title}
                     </span>
                     <div className="flex items-center gap-3 text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -185,7 +185,7 @@ export default function Tasks() {
                           {project.name}
                         </span>
                       )}
-                      {assignee && <span className="font-medium text-slate-500">{assignee.name}</span>}
+                      {assignee && <span className="font-medium text-slate-500 dark:text-slate-400">{assignee.name}</span>}
                       <span className={`font-medium ${PRIORITY_COLORS[t.priority]}`}>{PRIORITY_MAP[t.priority]}</span>
                       {t.due_date && (
                         <span className={`font-medium ${isOverdue ? 'text-red-500' : 'text-slate-400'}`}>

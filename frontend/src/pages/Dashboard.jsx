@@ -45,7 +45,7 @@ function DonutChart({ data, total }) {
         ))}
       </svg>
       <div className="absolute text-center">
-        <div className="text-2xl font-bold text-slate-800">{total.toLocaleString()}</div>
+        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{total.toLocaleString()}</div>
         <div className="text-xs text-slate-400 mt-0.5">총 태스크</div>
       </div>
     </div>
@@ -54,16 +54,16 @@ function DonutChart({ data, total }) {
 
 function ActivityIcon({ status }) {
   if (status === 'done') return (
-    <span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-600 text-sm">✓</span>
+    <span className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0 text-emerald-600 dark:text-emerald-300 text-sm">✓</span>
   )
   if (status === 'in_progress') return (
-    <span className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 text-sm">▶</span>
+    <span className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0 text-amber-600 dark:text-amber-300 text-sm">▶</span>
   )
   if (status === 'review') return (
-    <span className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 text-blue-600 text-sm">⊙</span>
+    <span className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0 text-blue-600 dark:text-blue-300 text-sm">⊙</span>
   )
   return (
-    <span className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-500 text-sm">+</span>
+    <span className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 text-slate-500 dark:text-slate-400 text-sm">+</span>
   )
 }
 
@@ -76,13 +76,13 @@ function StatCard({ icon, value, label, sub, accent }) {
   }
   const cls = accents[accent] || accents.blue
   return (
-    <div className="bg-white rounded-2xl px-5 py-4 border border-slate-200 shadow-card flex items-center gap-4">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl px-5 py-4 border border-slate-200 dark:border-slate-700 shadow-card flex items-center gap-4">
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${cls}`}>
         {icon}
       </div>
       <div className="min-w-0">
-        <div className="text-2xl font-bold text-slate-800 leading-none">{value}</div>
-        <div className="text-sm font-medium text-slate-600 mt-0.5">{label}</div>
+        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-none">{value}</div>
+        <div className="text-sm font-medium text-slate-600 dark:text-slate-300 mt-0.5">{label}</div>
         {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
       </div>
     </div>
@@ -136,7 +136,7 @@ export default function Dashboard() {
       {/* 헤더 */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">안녕하세요, {user?.name}님 👋</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">안녕하세요, {user?.name}님 👋</h1>
           <p className="text-slate-400 text-sm mt-1">{dayjs().format('YYYY년 MM월 DD일 dddd')}</p>
         </div>
         <button
@@ -159,10 +159,10 @@ export default function Dashboard() {
       {/* 메인 2분할 */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         {/* 상태 개요 */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-800">상태 개요</h2>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">상태 개요</h2>
               <p className="text-xs text-slate-400 mt-0.5">태스크 상태 분포</p>
             </div>
             <button onClick={() => navigate('/tasks')}
@@ -171,16 +171,16 @@ export default function Dashboard() {
           <div className="flex items-center gap-8">
             {totalTasks > 0
               ? <DonutChart data={donutData} total={totalTasks} />
-              : <div className="w-40 h-40 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-sm">데이터 없음</div>
+              : <div className="w-40 h-40 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-sm">데이터 없음</div>
             }
             <div className="space-y-2.5 flex-1">
               {donutData.map(d => (
                 <div key={d.label} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: d.color }} />
-                    <span className="text-sm text-slate-600">{d.label}</span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">{d.label}</span>
                   </div>
-                  <span className="text-sm font-semibold text-slate-800">{d.value.toLocaleString()}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{d.value.toLocaleString()}</span>
                 </div>
               ))}
               {donutData.length === 0 && (
@@ -191,10 +191,10 @@ export default function Dashboard() {
         </div>
 
         {/* 최근 활동 */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-800">최근 활동</h2>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">최근 활동</h2>
               <p className="text-xs text-slate-400 mt-0.5">최근 생성된 태스크</p>
             </div>
           </div>
@@ -207,7 +207,7 @@ export default function Dashboard() {
                   <ActivityIcon status={a.status} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm text-slate-700 truncate font-medium group-hover:text-blue-600 transition-colors">
+                      <span className="text-sm text-slate-700 dark:text-slate-200 truncate font-medium group-hover:text-blue-600 transition-colors">
                         {a.title}
                       </span>
                       <span className="text-xs text-slate-400 flex-shrink-0">{dayjs(a.ts).fromNow()}</span>
@@ -231,9 +231,9 @@ export default function Dashboard() {
       {/* 하단 2분할 */}
       <div className="grid grid-cols-2 gap-4">
         {/* 우선순위 분포 */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-card">
           <div className="mb-4">
-            <h2 className="text-sm font-bold text-slate-800">우선순위 분포</h2>
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">우선순위 분포</h2>
             <p className="text-xs text-slate-400 mt-0.5">태스크 우선순위별 현황</p>
           </div>
           <div className="space-y-3">
@@ -245,11 +245,11 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full" style={{ background: PRIORITY_COLOR[p] }} />
-                      <span className="text-slate-600 font-medium">{PRIORITY_LABEL[p]}</span>
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">{PRIORITY_LABEL[p]}</span>
                     </div>
-                    <span className="text-slate-800 font-semibold">{count}</span>
+                    <span className="text-slate-800 dark:text-slate-100 font-semibold">{count}</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5">
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
                     <div className="h-1.5 rounded-full transition-all duration-500"
                       style={{ width: `${pct}%`, background: PRIORITY_COLOR[p] }} />
                   </div>
@@ -260,10 +260,10 @@ export default function Dashboard() {
         </div>
 
         {/* 프로젝트 현황 */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-card">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-800">프로젝트 현황</h2>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">프로젝트 현황</h2>
               <p className="text-xs text-slate-400 mt-0.5">활성 프로젝트 {activeProjects.length}개</p>
             </div>
             <button onClick={() => navigate('/projects')}
@@ -273,13 +273,13 @@ export default function Dashboard() {
             ? <p className="text-slate-400 text-sm">활성 프로젝트 없음</p>
             : activeProjects.slice(0, 5).map(p => (
               <div key={p.id} onClick={() => navigate(`/projects/${p.id}`)}
-                className="py-2.5 border-b border-slate-100 last:border-0 cursor-pointer hover:bg-slate-50 -mx-2 px-2 rounded-lg transition-colors group">
+                className="py-2.5 border-b border-slate-100 dark:border-slate-800 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 -mx-2 px-2 rounded-lg transition-colors group">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color || '#6366f1' }} />
-                  <span className="text-sm text-slate-700 font-medium truncate group-hover:text-blue-600 transition-colors">{p.name}</span>
-                  <span className="ml-auto text-xs font-semibold text-slate-500">{p.progress}%</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-200 font-medium truncate group-hover:text-blue-600 transition-colors">{p.name}</span>
+                  <span className="ml-auto text-xs font-semibold text-slate-500 dark:text-slate-400">{p.progress}%</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
                   <div className="h-1.5 rounded-full transition-all duration-500"
                     style={{ width: `${p.progress}%`, background: p.color || '#6366f1' }} />
                 </div>
