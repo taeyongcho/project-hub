@@ -6,13 +6,36 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.task import Task
 from app.models.work_log import WorkLog
+from app.services import notification as notif_svc
 
 router = APIRouter(prefix="/notifications", tags=["알림"])
+
+
+@router.post("/{notif_id}/read")
+async def read_one(notif_id: int, db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    await notif_svc.mark_read(db, current_user.id, notif_id)
+    return {"ok": True}
+
+
+@router.post("/read-all")
+async def read_all(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    await notif_svc.mark_all_read(db, current_user.id)
+    return {"ok": True}
 
 
 @router.get("")
 async def get_notifications(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
     today = date.today()
+
+    # 저장형 이벤트 알림 (배정/댓글)
+    stored = await notif_svc.list_stored(db, current_user.id)
+    event_items = [{
+        "id": n.id, "notif_id": n.id, "task_id": n.task_id,
+        "title": n.title, "type": n.type, "message": n.message,
+        "is_read": n.is_read,
+        "due_date": n.created_at.isoformat() if n.created_at else None,
+    } for n in stored]
+    unread_events = sum(1 for n in stored if not n.is_read)
 
     # 내 태스크 중 기한 초과
     overdue_rows = await db.execute(
@@ -86,4 +109,7 @@ async def get_notifications(db: AsyncSession = Depends(get_db), current_user=Dep
                 "due_date": c["expires_at"],
             })
 
-    return {"count": len(items), "items": items}
+    # 저장형 이벤트(안읽음 우선) + 계산형 알림 병합
+    all_items = event_items + items
+    count = unread_events + len(items)
+    return {"count": count, "items": all_items}

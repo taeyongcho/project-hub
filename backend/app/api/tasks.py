@@ -72,7 +72,7 @@ async def edit_task(task_id: int, body: TaskUpdate, db: AsyncSession = Depends(g
     data = body.model_dump(exclude_none=True)
     if data.get("status") == "done":
         data["done_at"] = datetime.now()
-    return await update_task(db, task_id, data)
+    return await update_task(db, task_id, data, actor_id=current_user.id)
 
 
 @router.delete("/{task_id}")
