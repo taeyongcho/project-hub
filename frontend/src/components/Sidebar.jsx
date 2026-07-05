@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare, FlaskConical } from 'lucide-react'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare, FlaskConical, ShieldCheck } from 'lucide-react'
 import useAuth from '../store/auth'
 import { useTheme } from '../store/theme'
 import api from '../api/client'
@@ -208,6 +208,13 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
               >
                 <Users size={18} />
                 <span>사용자 관리</span>
+              </NavLink>
+              <NavLink
+                to="/cert-monitor"
+                className={navLinkCls}
+              >
+                <ShieldCheck size={18} />
+                <span>인증서 관리</span>
               </NavLink>
             </>
           )}

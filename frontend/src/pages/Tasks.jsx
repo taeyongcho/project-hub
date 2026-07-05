@@ -73,7 +73,7 @@ export default function Tasks() {
   })
 
   const displayTasks = filter === 'overdue'
-    ? tasks.filter(t => t.due_date && t.status !== 'done' && dayjs(t.due_date).isBefore(dayjs()))
+    ? tasks.filter(t => t.due_date && t.status !== 'done' && dayjs(t.due_date).isBefore(dayjs(), 'day'))
     : tasks
 
   const grouped = displayTasks.reduce((acc, t) => {

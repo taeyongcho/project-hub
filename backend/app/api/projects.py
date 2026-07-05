@@ -68,7 +68,13 @@ async def edit_project(project_id: int, body: ProjectUpdate, db: AsyncSession = 
 
 
 @router.delete("/{project_id}")
-async def remove_project(project_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def remove_project(project_id: int, db: AsyncSession = Depends(get_db),
+                         current_user=Depends(get_current_user)):
+    project = await get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    if current_user.role != "admin" and project.get("owner_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="프로젝트 소유자 또는 관리자만 삭제할 수 있습니다.")
     await delete_project(db, project_id)
     return {"ok": True}
 

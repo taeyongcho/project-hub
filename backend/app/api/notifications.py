@@ -69,4 +69,21 @@ async def get_notifications(db: AsyncSession = Depends(get_db), current_user=Dep
                 "due_date": str(today),
             })
 
+    # 인증서 만료 임박/만료 (관리자 전용)
+    if current_user.role == "admin":
+        from app.services.cert_monitor import expiring_soon
+        for c in await expiring_soon(db):
+            dl = c["days_left"]
+            if dl is not None and dl < 0:
+                msg = f"인증서 만료됨 ({-dl}일 경과)"
+            else:
+                msg = f"인증서 만료 {dl}일 전"
+            items.append({
+                "id": 10000 + c["id"], "task_id": None,
+                "title": f"🔒 {c['label']}",
+                "type": "cert_expiry",
+                "message": msg,
+                "due_date": c["expires_at"],
+            })
+
     return {"count": len(items), "items": items}

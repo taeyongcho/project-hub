@@ -11,6 +11,7 @@ import Tasks from './pages/Tasks'
 import WorkLog from './pages/WorkLog'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
+import CertMonitor from './pages/CertMonitor'
 import EmailSettings from './pages/EmailSettings'
 import Whiteboard from './pages/Whiteboard'
 import Whiteboards from './pages/Whiteboards'
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="worklog" element={<WorkLog />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={<Users />} />
+          <Route path="cert-monitor" element={<CertMonitor />} />
           <Route path="email-settings" element={<EmailSettings />} />
           <Route path="whiteboards" element={<Whiteboards />} />
           <Route path="whiteboard/:boardId" element={<Whiteboard />} />

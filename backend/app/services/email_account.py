@@ -11,12 +11,29 @@ from app.models.email_account import EmailAccount
 from app.models.email import Email
 
 
+import hashlib as _hashlib
+from cryptography.fernet import Fernet, InvalidToken
+from app.core.config import settings
+
+# SECRET_KEY에서 Fernet 키 유도 (32바이트 → urlsafe base64)
+_fernet = Fernet(base64.urlsafe_b64encode(
+    _hashlib.sha256(settings.secret_key.encode()).digest()
+))
+
+
 def _enc(pw: str) -> str:
-    return base64.b64encode(pw.encode()).decode()
+    return _fernet.encrypt(pw.encode()).decode()
 
 
 def _dec(enc: str) -> str:
-    return base64.b64decode(enc.encode()).decode()
+    """Fernet 복호화. 실패 시 예전 base64 방식으로 폴백(하위호환)."""
+    try:
+        return _fernet.decrypt(enc.encode()).decode()
+    except (InvalidToken, ValueError):
+        try:
+            return base64.b64decode(enc.encode()).decode()
+        except Exception:
+            return ""
 
 
 def _decode_header(val: str) -> str:
@@ -90,6 +107,7 @@ async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
     save_dir = "/app/emails"
     os.makedirs(save_dir, exist_ok=True)
 
+    conn = None
     try:
         if account.pop3_ssl:
             conn = poplib.POP3_SSL(account.pop3_host, account.pop3_port, timeout=20)
@@ -153,10 +171,15 @@ async def fetch_emails_pop3(db: AsyncSession, account_id: int) -> dict:
                 errors.append(str(e))
 
         await db.commit()
-        conn.quit()
 
     except Exception as e:
         return {"error": str(e), "imported": 0}
+    finally:
+        if conn is not None:
+            try:
+                conn.quit()
+            except Exception:
+                pass
 
     return {"imported": imported, "skipped": skipped, "errors": errors[:5]}
 

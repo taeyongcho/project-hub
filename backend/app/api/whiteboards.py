@@ -153,6 +153,8 @@ async def update_whiteboard(
     wb = result.scalar_one_or_none()
     if not wb:
         raise HTTPException(status_code=404, detail="화이트보드를 찾을 수 없습니다")
+    if not _can_access(wb, current_user):
+        raise HTTPException(status_code=403, detail="이 보드를 편집할 권한이 없습니다")
 
     if data.name is not None:
         wb.name = data.name
@@ -185,6 +187,8 @@ async def delete_whiteboard(
     wb = result.scalar_one_or_none()
     if not wb:
         raise HTTPException(status_code=404, detail="화이트보드를 찾을 수 없습니다")
+    if wb.created_by_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="소유자 또는 관리자만 삭제할 수 있습니다")
 
     await db.delete(wb)
     await db.commit()

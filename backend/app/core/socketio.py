@@ -1,10 +1,11 @@
 from socketio import AsyncServer
 from fastapi import Request
 from typing import Dict, Set
+from app.core.config import settings
 
 sio = AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins='*',
+    cors_allowed_origins=settings.cors_origin_list,
     ping_timeout=60,
     ping_interval=25
 )

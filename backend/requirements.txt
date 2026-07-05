@@ -21,3 +21,4 @@ python-socketio==5.10.0
 python-engineio==4.8.0
 aioredis==2.0.1
 anthropic==0.40.0
+cryptography==43.0.1

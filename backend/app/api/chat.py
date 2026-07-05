@@ -1,6 +1,8 @@
 import os
+import re
 import uuid
 import asyncio
+import aiofiles
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,13 @@ router = APIRouter(prefix="/chat", tags=["채팅"])
 UPLOAD_DIR = "/app/uploads/chat"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_SIZE = 20 * 1024 * 1024  # 20MB
+
+
+def _safe_ext(filename: str | None) -> str:
+    """확장자만 안전하게 추출 (영숫자만 허용, 경로/특수문자 제거)"""
+    ext = os.path.splitext(filename or "")[1].lower()
+    ext = re.sub(r"[^a-z0-9.]", "", ext)[:10]
+    return ext if ext.startswith(".") else (f".{ext}" if ext else "")
 
 
 class MessageIn(BaseModel):
@@ -95,10 +104,10 @@ async def upload_file(file: UploadFile = File(...), _=Depends(get_current_user))
     data = await file.read()
     if len(data) > MAX_SIZE:
         raise HTTPException(status_code=413, detail="파일이 너무 큽니다 (최대 20MB)")
-    ext = os.path.splitext(file.filename or "")[1][:10]
+    ext = _safe_ext(file.filename)
     stored = f"{uuid.uuid4().hex}{ext}"
-    with open(os.path.join(UPLOAD_DIR, stored), "wb") as f:
-        f.write(data)
+    async with aiofiles.open(os.path.join(UPLOAD_DIR, stored), "wb") as f:
+        await f.write(data)
     return {
         "url": f"/api/chat/files/{stored}",
         "name": file.filename or stored,
@@ -445,10 +454,10 @@ async def add_sticker(file: UploadFile = File(...), db: AsyncSession = Depends(g
     data = await file.read()
     if len(data) > 2 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="스티커는 최대 2MB")
-    ext = os.path.splitext(file.filename or "")[1][:10] or ".png"
+    ext = _safe_ext(file.filename) or ".png"
     stored = f"{uuid.uuid4().hex}{ext}"
-    with open(os.path.join(UPLOAD_DIR, stored), "wb") as f:
-        f.write(data)
+    async with aiofiles.open(os.path.join(UPLOAD_DIR, stored), "wb") as f:
+        await f.write(data)
     s = StickerAsset(url=f"/api/chat/files/{stored}", name=(file.filename or "")[:255], created_by_id=current_user.id)
     db.add(s)
     await db.commit()

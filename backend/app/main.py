@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.config import settings
 from app.core.socketio import sio
-from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor
 
 
 @asynccontextmanager
@@ -64,12 +64,14 @@ async def lifespan(app: FastAPI):
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
     await _create_ai_user()
+    await _seed_certs()
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_auto_generate_reports, 'cron', day_of_week=0, hour=9, id='weekly_report')
     scheduler.add_job(_auto_generate_reports, 'cron', day=1, hour=9, id='monthly_report')
+    scheduler.add_job(_check_certs_job, 'cron', hour=8, minute=0, id='cert_check')
     scheduler.start()
-    print("✓ 보고서 자동 생성 스케줄러 시작 (매주 월요일 9시, 매달 1일 9시)")
+    print("✓ 스케줄러 시작 (주간/월간 보고서, 매일 8시 인증서 점검)")
 
     yield
 
@@ -116,6 +118,37 @@ async def _get_admin_id():
         return user.id if user else None
 
 
+DEFAULT_CERT_HOSTS = ["afg.kr", "www.afg.kr", "mail.afg.kr"]
+
+
+async def _seed_certs():
+    """최초 실행 시 afg.kr 그룹 도메인 시드 (관리자가 추가/삭제 가능)"""
+    from sqlalchemy import select, func
+    from app.models.cert_monitor import MonitoredCert
+    from app.services.cert_monitor import _refresh
+    admin_id = await _get_admin_id()
+    async with AsyncSessionLocal() as db:
+        count = await db.scalar(select(func.count(MonitoredCert.id)))
+        if count and count > 0:
+            return
+        for host in DEFAULT_CERT_HOSTS:
+            cert = MonitoredCert(host=host, port=443, created_by_id=admin_id)
+            db.add(cert)
+            await db.flush()
+            await _refresh(db, cert)
+        await db.commit()
+        print(f"✓ 인증서 모니터링 기본 도메인 {len(DEFAULT_CERT_HOSTS)}개 등록")
+
+
+async def _check_certs_job():
+    from app.services.cert_monitor import refresh_all
+    async with AsyncSessionLocal() as db:
+        try:
+            await refresh_all(db)
+        except Exception as e:
+            print(f"인증서 점검 오류: {e}")
+
+
 async def _auto_generate_reports():
     from app.services.report import generate_weekly, generate_monthly
     admin_id = await _get_admin_id()
@@ -148,6 +181,7 @@ app.include_router(notifications.router, prefix="/api")
 app.include_router(whiteboards.router, prefix="/api")
 app.include_router(system_links.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(cert_monitor.router, prefix="/api")
 
 
 @app.get("/api/health")

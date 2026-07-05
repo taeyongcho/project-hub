@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date, datetime
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/tasks", tags=["태스크"])
 
 
 class TaskCreate(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=300)
     description: str = ""
     priority: str = "normal"
     start_date: date | None = None
@@ -76,7 +76,15 @@ async def edit_task(task_id: int, body: TaskUpdate, db: AsyncSession = Depends(g
 
 
 @router.delete("/{task_id}")
-async def remove_task(task_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def remove_task(task_id: int, db: AsyncSession = Depends(get_db),
+                      current_user=Depends(get_current_user)):
+    task = await get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="태스크를 찾을 수 없습니다.")
+    if current_user.role != "admin" and current_user.id not in (
+        task.get("created_by_id"), task.get("assigned_to_id")
+    ):
+        raise HTTPException(status_code=403, detail="작성자·담당자 또는 관리자만 삭제할 수 있습니다.")
     await delete_task(db, task_id)
     return {"ok": True}
 

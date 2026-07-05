@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/client'
+import { toast } from 'sonner'
 import dayjs from 'dayjs'
 
 const STATUS_LABELS = {
@@ -53,12 +54,14 @@ export default function Emails() {
       qc.invalidateQueries({ queryKey: ['emails'] })
       qc.invalidateQueries({ queryKey: ['email', selected?.id] })
       qc.invalidateQueries({ queryKey: ['overdue-reply'] })
-    }
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || '상태 변경 실패')
   })
 
   const memoMut = useMutation({
     mutationFn: ({ id, content }) => api.post(`/emails/${id}/memos`, { content }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['email-memos', selected?.id] }); setMemo('') }
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['email-memos', selected?.id] }); setMemo('') },
+    onError: (e) => toast.error(e.response?.data?.detail || '메모 저장 실패')
   })
 
   const deleteMut = useMutation({
@@ -66,7 +69,8 @@ export default function Emails() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emails'] })
       setSelected(null)
-    }
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || '삭제 실패')
   })
 
   const bulkDeleteMut = useMutation({
@@ -75,7 +79,8 @@ export default function Emails() {
       qc.invalidateQueries({ queryKey: ['emails'] })
       setCheckedIds(new Set())
       if (selected && checkedIds.has(selected.id)) setSelected(null)
-    }
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || '일괄 삭제 실패')
   })
 
   const syncMut = useMutation({
@@ -103,7 +108,8 @@ export default function Emails() {
 
   const taskMut = useMutation({
     mutationFn: ({ title, email_id }) => api.post('/tasks', { title, email_id, priority: 'normal' }),
-    onSuccess: () => alert('할일이 생성되었습니다.')
+    onSuccess: () => toast.success('할일이 생성되었습니다.'),
+    onError: (e) => toast.error(e.response?.data?.detail || '할일 생성 실패')
   })
 
   const handleFileChange = e => {
