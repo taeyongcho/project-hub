@@ -158,8 +158,8 @@ export default function Emails() {
 
   return (
     <div className="flex h-full">
-      {/* 목록 패널 */}
-      <div className="w-[450px] flex-shrink-0 border-r border-slate-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-900">
+      {/* 목록 패널 (모바일: 상세 선택 시 숨김) */}
+      <div className={`w-full md:w-[450px] flex-shrink-0 border-r border-slate-200 dark:border-slate-700 flex-col bg-white dark:bg-slate-900 ${selected ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-slate-100 dark:border-slate-800 space-y-2">
           <div className="flex items-center gap-2">
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="검색..."
@@ -290,7 +290,11 @@ export default function Emails() {
 
       {/* 상세 패널 */}
       {selected ? (
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 w-full">
+          <button onClick={() => setSelected(null)}
+            className="md:hidden flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 mb-3 -ml-1">
+            ← 목록으로
+          </button>
           <div className="flex items-start justify-between gap-4 mb-3">
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight flex-1">
               {detail?.subject || selected.subject}
@@ -407,7 +411,7 @@ export default function Emails() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-slate-400">
+        <div className="hidden md:flex flex-1 items-center justify-center text-slate-400">
           <div className="text-center">
             <div className="text-4xl mb-3">✉</div>
             <div>메일을 선택하세요</div>

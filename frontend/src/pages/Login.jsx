@@ -26,43 +26,43 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <span className="text-white text-xl font-bold">P</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mb-1">Project Hub</div>
-          <div className="text-sm text-slate-500">팀 업무 통합 관리 시스템</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">Project Hub</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">팀 업무 통합 관리 시스템</div>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-2xl p-8 shadow-card border border-slate-200 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-card border border-slate-200 dark:border-slate-700 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">이메일</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">이메일</label>
             <input
               type="email"
               {...register('email', {
                 required: '이메일은 필수입니다',
                 pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: '올바른 이메일 형식을 입력하세요' }
               })}
-              className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                errors.email ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
+              className={`w-full bg-white dark:bg-slate-800 border rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                errors.email ? 'border-red-300 dark:border-red-600 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
               }`}
               placeholder="admin@company.com"
             />
-            {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
+            {errors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">비밀번호</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">비밀번호</label>
             <input
               type="password"
               {...register('password', { required: '비밀번호는 필수입니다' })}
-              className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
-                errors.password ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
+              className={`w-full bg-white dark:bg-slate-800 border rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                errors.password ? 'border-red-300 dark:border-red-600 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
               }`}
               placeholder="••••••••"
               autoComplete="current-password"
             />
-            {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>}
+            {errors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.password.message}</p>}
           </div>
           <button
             type="submit"

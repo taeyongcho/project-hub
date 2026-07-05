@@ -103,20 +103,22 @@ export default function Dashboard() {
     onError: () => toast.error('화이트보드 생성 실패')
   })
 
-  const { data: myTasks } = useQuery({
+  const { data: myTasks, isError: tasksErr } = useQuery({
     queryKey: ['my-tasks'],
     queryFn: () => api.get(`/tasks?assigned_to_id=${user?.id}&status=in_progress`).then(r => r.data)
   })
 
-  const { data: summary } = useQuery({
+  const { data: summary, isError: summaryErr } = useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: () => api.get('/dashboard/summary').then(r => r.data)
   })
 
-  const { data: projects } = useQuery({
+  const { data: projects, isError: projectsErr } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.get('/projects').then(r => r.data)
   })
+
+  const hasError = tasksErr || summaryErr || projectsErr
 
   const activeProjects = projects?.filter(p => p.status === 'active') || []
 
@@ -133,6 +135,11 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {hasError && (
+        <div className="mb-4 flex items-center gap-2 text-sm bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
+          ⚠️ 일부 데이터를 불러오지 못했습니다. 네트워크를 확인하고 새로고침해주세요.
+        </div>
+      )}
       {/* 헤더 */}
       <div className="mb-6 flex items-center justify-between">
         <div>
