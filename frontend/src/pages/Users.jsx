@@ -56,6 +56,12 @@ export default function Users() {
     onError: (err) => toast.error(err.response?.data?.detail || '비활성화 실패')
   })
 
+  const resetMut = useMutation({
+    mutationFn: id => api.post(`/users/${id}/reset-password`),
+    onSuccess: (res) => toast.success(`비밀번호를 사번(${res.data.employee_no})으로 초기화했습니다. 다음 로그인 시 변경합니다.`),
+    onError: (err) => toast.error(err.response?.data?.detail || '초기화 실패')
+  })
+
   if (me?.role !== 'admin') {
     return <div className="p-6 text-slate-400">접근 권한이 없습니다.</div>
   }
@@ -199,13 +205,20 @@ export default function Users() {
                     {u.is_active ? '활성' : '비활성'}
                   </span>
                 </td>
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right whitespace-nowrap">
                   {u.id !== me?.id && u.is_active && (
-                    <button
-                      onClick={() => confirm(`'${u.name}' 계정을 비활성화할까요?`) && deactivateMut.mutate(u.id)}
-                      className="text-xs text-slate-400 hover:text-red-500 transition-colors font-medium">
-                      비활성화
-                    </button>
+                    <>
+                      <button
+                        onClick={() => confirm(`'${u.name}' 비밀번호를 사번으로 초기화할까요?`) && resetMut.mutate(u.id)}
+                        className="text-xs text-slate-400 hover:text-blue-500 transition-colors font-medium mr-3">
+                        비번 초기화
+                      </button>
+                      <button
+                        onClick={() => confirm(`'${u.name}' 계정을 비활성화할까요?`) && deactivateMut.mutate(u.id)}
+                        className="text-xs text-slate-400 hover:text-red-500 transition-colors font-medium">
+                        비활성화
+                      </button>
+                    </>
                   )}
                 </td>
               </tr>

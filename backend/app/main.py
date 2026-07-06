@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.config import settings
 from app.core.socketio import sio
-from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor, organization
 
 
 @asynccontextmanager
@@ -66,6 +66,15 @@ async def lifespan(app: FastAPI):
         ))
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS dept_name VARCHAR(200)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS dept_code VARCHAR(50)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_users_employee_no ON users(employee_no)"
         ))
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
@@ -188,6 +197,7 @@ app.include_router(whiteboards.router, prefix="/api")
 app.include_router(system_links.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(cert_monitor.router, prefix="/api")
+app.include_router(organization.router, prefix="/api")
 
 
 @app.get("/api/health")

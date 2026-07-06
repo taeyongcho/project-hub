@@ -1,7 +1,7 @@
 import { useState, useEffect, memo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare, FlaskConical, ShieldCheck, CalendarDays, TrendingUp } from 'lucide-react'
+import { LayoutGrid, Folder, CheckCircle, BarChart3, Mail, Clock, Users, Settings, Bell, Search, Sun, Moon, LogOut, PenTool, Server, MessageSquare, FlaskConical, ShieldCheck, CalendarDays, TrendingUp, Building2 } from 'lucide-react'
 import useAuth from '../store/auth'
 import { useTheme } from '../store/theme'
 import api from '../api/client'
@@ -18,6 +18,7 @@ const TEAM_NAV = [
   { to: '/reports',   icon: BarChart3, label: '보고서'  },
   { to: '/stats',     icon: TrendingUp, label: '통계'   },
   { to: '/whiteboards', icon: PenTool, label: '화이트보드' },
+  { to: '/org',       icon: Building2, label: '조직도'  },
 ]
 
 // 채팅은 별도 팝업 창으로 (메인 화면을 가리지 않음)

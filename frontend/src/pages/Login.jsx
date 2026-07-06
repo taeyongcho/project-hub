@@ -37,17 +37,15 @@ export default function Login() {
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-card border border-slate-200 dark:border-slate-700 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">이메일</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">사번 또는 이메일</label>
             <input
-              type="email"
-              {...register('email', {
-                required: '이메일은 필수입니다',
-                pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: '올바른 이메일 형식을 입력하세요' }
-              })}
+              type="text"
+              autoComplete="username"
+              {...register('email', { required: '사번 또는 이메일을 입력하세요' })}
               className={`w-full bg-white dark:bg-slate-800 border rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
                 errors.email ? 'border-red-300 dark:border-red-600 focus:ring-red-500' : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500'
               }`}
-              placeholder="admin@company.com"
+              placeholder="사번 (예: A2501079)"
             />
             {errors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>}
           </div>

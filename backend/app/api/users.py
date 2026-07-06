@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
 from app.core.database import get_db
 from app.core.security import get_current_user, require_admin, hash_password, verify_password
-from app.services.user import get_all_users, get_user_by_email, create_user, update_user, deactivate_user
+from app.services.user import get_all_users, get_user_by_email, get_user_by_id, create_user, update_user, deactivate_user
 
 router = APIRouter(prefix="/users", tags=["사용자"])
 
@@ -97,6 +97,20 @@ async def edit_user(user_id: int, body: UserUpdate, db: AsyncSession = Depends(g
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     return {"id": user.id, "name": user.name, "role": user.role, "is_active": user.is_active}
+
+
+@router.post("/{user_id}/reset-password")
+async def reset_password(user_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
+    """관리자가 비밀번호를 사번으로 초기화하고 강제 변경 플래그를 켠다."""
+    user = await get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    if not user.employee_no:
+        raise HTTPException(status_code=400, detail="사번이 없어 초기화할 수 없습니다.")
+    user.password_hash = hash_password(user.employee_no)
+    user.must_change_password = True
+    await db.commit()
+    return {"ok": True, "employee_no": user.employee_no}
 
 
 @router.delete("/{user_id}")
