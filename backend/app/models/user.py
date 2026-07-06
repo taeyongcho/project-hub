@@ -10,6 +10,8 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(50))
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
+    employee_no: Mapped[str] = mapped_column(String(50), nullable=True)  # 사번
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)  # 최초 비번 변경 필요
     role: Mapped[str] = mapped_column(String(20), default="member")  # admin / member / viewer
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     avatar_emoji: Mapped[str] = mapped_column(String(16), default="🙂")

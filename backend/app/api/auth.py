@@ -18,4 +18,5 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer",
             "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role,
+                     "must_change_password": bool(getattr(user, "must_change_password", False)),
                      "avatar_emoji": user.avatar_emoji, "avatar_color": user.avatar_color}}

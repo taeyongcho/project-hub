@@ -3,6 +3,7 @@ import { Toaster } from 'sonner'
 import useAuth from './store/auth'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import ForcePasswordChange from './pages/ForcePasswordChange'
 import Dashboard from './pages/Dashboard'
 import Emails from './pages/Emails'
 import Projects from './pages/Projects'
@@ -23,8 +24,10 @@ import NotFound from './pages/NotFound'
 import ServerError from './pages/ServerError'
 
 function Guard({ children }) {
-  const { token } = useAuth()
-  return token ? children : <Navigate to="/login" replace />
+  const { token, user } = useAuth()
+  if (!token) return <Navigate to="/login" replace />
+  if (user?.must_change_password) return <ForcePasswordChange />
+  return children
 }
 
 export default function App() {

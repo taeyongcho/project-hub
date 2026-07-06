@@ -18,8 +18,10 @@ async def get_all_users(db: AsyncSession) -> list[User]:
     return result.scalars().all()
 
 
-async def create_user(db: AsyncSession, name: str, email: str, password_hash: str, role: str) -> User:
-    user = User(name=name, email=email, password_hash=password_hash, role=role)
+async def create_user(db: AsyncSession, name: str, email: str, password_hash: str, role: str,
+                      employee_no: str = None, must_change_password: bool = False) -> User:
+    user = User(name=name, email=email, password_hash=password_hash, role=role,
+                employee_no=employee_no, must_change_password=must_change_password)
     db.add(user)
     await db.commit()
     await db.refresh(user)

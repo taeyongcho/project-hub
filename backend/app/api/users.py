@@ -11,7 +11,7 @@ router = APIRouter(prefix="/users", tags=["사용자"])
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
-    password: str
+    employee_no: str          # 사번 — 초기 비밀번호로 사용
     role: str = "member"
 
 
@@ -34,6 +34,8 @@ class PasswordChange(BaseModel):
 
 def _u(u):
     return {"id": u.id, "name": u.name, "email": u.email, "role": u.role,
+            "employee_no": getattr(u, "employee_no", None),
+            "must_change_password": bool(getattr(u, "must_change_password", False)),
             "avatar_emoji": getattr(u, "avatar_emoji", "🙂"), "avatar_color": getattr(u, "avatar_color", "#3b82f6")}
 
 
@@ -64,6 +66,7 @@ async def change_password(body: PasswordChange, db: AsyncSession = Depends(get_d
     if len(body.new_password) < 1:
         raise HTTPException(status_code=400, detail="새 비밀번호를 입력하세요")
     current_user.password_hash = hash_password(body.new_password)
+    current_user.must_change_password = False
     await db.commit()
     return {"ok": True}
 
@@ -78,8 +81,14 @@ async def list_users(db: AsyncSession = Depends(get_db), _=Depends(get_current_u
 async def invite_user(body: UserCreate, db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     if await get_user_by_email(db, body.email):
         raise HTTPException(status_code=400, detail="이미 존재하는 이메일입니다.")
-    user = await create_user(db, body.name, body.email, hash_password(body.password), body.role)
-    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
+    emp_no = body.employee_no.strip()
+    if not emp_no:
+        raise HTTPException(status_code=400, detail="사번을 입력하세요.")
+    # 초기 비밀번호 = 사번, 최초 로그인 시 변경 강제
+    user = await create_user(db, body.name, body.email, hash_password(emp_no), body.role,
+                             employee_no=emp_no, must_change_password=True)
+    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role,
+            "employee_no": user.employee_no}
 
 
 @router.patch("/{user_id}")

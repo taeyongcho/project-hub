@@ -18,7 +18,7 @@ export default function Users() {
   const { user: me } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
-    defaultValues: { name: '', email: '', password: '', role: 'member' },
+    defaultValues: { name: '', email: '', employee_no: '', role: 'member' },
     mode: 'onBlur'
   })
 
@@ -103,14 +103,15 @@ export default function Users() {
                 {errors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>}
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">초기 비밀번호 *</label>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">사번 * (초기 비밀번호)</label>
                 <input
-                  type="password"
-                  {...register('password', { required: '비밀번호는 필수입니다', minLength: { value: 6, message: '최소 6자 이상이어야 합니다' } })}
-                  className={`${inputCls} ${errors.password ? 'border-red-300 dark:border-red-600' : ''}`}
-                  placeholder="••••••••"
+                  {...register('employee_no', { required: '사번은 필수입니다' })}
+                  className={`${inputCls} ${errors.employee_no ? 'border-red-300 dark:border-red-600' : ''}`}
+                  placeholder="예: 2024001"
                 />
-                {errors.password && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.password.message}</p>}
+                {errors.employee_no
+                  ? <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.employee_no.message}</p>
+                  : <p className="mt-1 text-[11px] text-slate-400">사번이 초기 비밀번호가 되며, 첫 로그인 시 변경하게 됩니다.</p>}
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">역할</label>
