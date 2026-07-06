@@ -56,6 +56,74 @@ async def calendar(
     return {"tasks": tasks, "milestones": milestones}
 
 
+@router.get("/stats")
+async def stats(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    """팀 생산성 통계 (완료 추이, 팀원별, 프로젝트별, 분포)"""
+    today = date.today()
+
+    # 최근 8주 주별 완료 추이
+    since = today - timedelta(weeks=8)
+    week_rows = (await db.execute(
+        select(func.date_trunc('week', Task.done_at).label("wk"), func.count(Task.id))
+        .where(Task.status == "done", Task.done_at != None, Task.done_at >= datetime(since.year, since.month, since.day))
+        .group_by("wk").order_by("wk")
+    )).all()
+    weekly_completed = [
+        {"week": wk.strftime("%m/%d") if wk else "", "count": cnt}
+        for wk, cnt in week_rows
+    ]
+
+    # 팀원별 (담당 태스크 상태 집계)
+    user_rows = (await db.execute(
+        select(User.name, Task.status, func.count(Task.id))
+        .join(Task, Task.assigned_to_id == User.id)
+        .group_by(User.name, Task.status)
+    )).all()
+    user_map = {}
+    for name, status, cnt in user_rows:
+        u = user_map.setdefault(name, {"name": name, "done": 0, "in_progress": 0, "todo": 0, "total": 0})
+        u["total"] += cnt
+        if status == "done":
+            u["done"] += cnt
+        elif status == "in_progress":
+            u["in_progress"] += cnt
+        else:
+            u["todo"] += cnt
+    by_user = sorted(user_map.values(), key=lambda x: x["total"], reverse=True)[:10]
+
+    # 프로젝트별 진행률
+    proj_rows = (await db.execute(
+        select(Project.name, Project.color,
+               func.count(Task.id),
+               func.count(Task.id).filter(Task.status == "done"))
+        .join(Task, Task.project_id == Project.id, isouter=True)
+        .where(Project.status == "active")
+        .group_by(Project.id, Project.name, Project.color)
+    )).all()
+    by_project = [
+        {"name": name, "color": color, "total": total or 0, "done": done or 0,
+         "progress": round((done / total * 100) if total else 0)}
+        for name, color, total, done in proj_rows
+    ]
+    by_project.sort(key=lambda x: x["total"], reverse=True)
+
+    # 분포
+    status_rows = (await db.execute(
+        select(Task.status, func.count(Task.id)).group_by(Task.status)
+    )).all()
+    priority_rows = (await db.execute(
+        select(Task.priority, func.count(Task.id)).group_by(Task.priority)
+    )).all()
+
+    return {
+        "weekly_completed": weekly_completed,
+        "by_user": by_user,
+        "by_project": by_project[:10],
+        "status_counts": {r[0]: r[1] for r in status_rows},
+        "priority_counts": {r[0]: r[1] for r in priority_rows},
+    }
+
+
 @router.get("/summary")
 async def summary(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
     now = datetime.now()

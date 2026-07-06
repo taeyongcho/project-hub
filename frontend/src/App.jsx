@@ -11,6 +11,7 @@ import Tasks from './pages/Tasks'
 import Calendar from './pages/Calendar'
 import WorkLog from './pages/WorkLog'
 import Reports from './pages/Reports'
+import Stats from './pages/Stats'
 import Users from './pages/Users'
 import CertMonitor from './pages/CertMonitor'
 import EmailSettings from './pages/EmailSettings'
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="calendar" element={<Calendar />} />
           <Route path="worklog" element={<WorkLog />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="stats" element={<Stats />} />
           <Route path="users" element={<Users />} />
           <Route path="cert-monitor" element={<CertMonitor />} />
           <Route path="email-settings" element={<EmailSettings />} />
