@@ -7,15 +7,17 @@ from app.models.task import Task
 from app.models.project import Project
 from app.models.whiteboard import Whiteboard
 from app.models.system_link import SystemLink
+from app.models.email import Email
+from app.models.work_log import WorkLog
 
 router = APIRouter(prefix="/search", tags=["검색"])
 
 
 @router.get("")
 async def search(
-    q: str = Query(..., min_length=1),
+    q: str = Query(..., min_length=1, max_length=200),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
     q_like = f"%{q}%"
 
@@ -57,5 +59,33 @@ async def search(
         for s in link_rows.scalars().all()
     ]
 
+    # 이메일 (내 소유만)
+    email_rows = await db.execute(
+        select(Email).where(
+            Email.owner_id == current_user.id,
+            or_(Email.subject.ilike(q_like), Email.from_.ilike(q_like))
+        ).order_by(Email.date_ts.desc().nullslast()).limit(5)
+    )
+    emails = [
+        {"id": e.id, "subject": e.subject or "(제목없음)", "from_": e.from_,
+         "status": e.status, "type": "email"}
+        for e in email_rows.scalars().all()
+    ]
+
+    # 업무일지 (내 것만)
+    wl_rows = await db.execute(
+        select(WorkLog).where(
+            WorkLog.user_id == current_user.id,
+            or_(WorkLog.content.ilike(q_like), WorkLog.issues.ilike(q_like),
+                WorkLog.next_plan.ilike(q_like))
+        ).order_by(WorkLog.log_date.desc()).limit(5)
+    )
+    work_logs = [
+        {"id": w.id, "log_date": str(w.log_date),
+         "snippet": (w.content or "")[:60], "type": "work_log"}
+        for w in wl_rows.scalars().all()
+    ]
+
     return {"tasks": tasks, "projects": projects,
-            "whiteboards": whiteboards, "system_links": system_links}
+            "whiteboards": whiteboards, "system_links": system_links,
+            "emails": emails, "work_logs": work_logs}

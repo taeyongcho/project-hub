@@ -11,11 +11,18 @@ const STATUS_COLORS = {
 }
 const STATUS_LABEL = { todo: '할 일', in_progress: '진행 중', review: '검토', done: '완료' }
 
+const TYPE_FILTERS = [
+  ['all', '전체'], ['task', '태스크'], ['project', '프로젝트'],
+  ['email', '이메일'], ['work_log', '업무일지'], ['whiteboard', '화이트보드'], ['system_link', '시스템'],
+]
+
 export default function SearchModal({ onClose, onSelectTask }) {
   const [q, setQ] = useState('')
   const [debouncedQ, setDebouncedQ] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
   const inputRef = useRef(null)
   const navigate = useNavigate()
+  const show = (t) => typeFilter === 'all' || typeFilter === t
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
@@ -40,7 +47,10 @@ export default function SearchModal({ onClose, onSelectTask }) {
   const projects = data?.projects || []
   const whiteboards = data?.whiteboards || []
   const systemLinks = data?.system_links || []
-  const hasResults = tasks.length > 0 || projects.length > 0 || whiteboards.length > 0 || systemLinks.length > 0
+  const emails = data?.emails || []
+  const workLogs = data?.work_logs || []
+  const hasResults = tasks.length > 0 || projects.length > 0 || whiteboards.length > 0 ||
+    systemLinks.length > 0 || emails.length > 0 || workLogs.length > 0
 
   return (
     <>
@@ -54,12 +64,28 @@ export default function SearchModal({ onClose, onSelectTask }) {
               ref={inputRef}
               value={q}
               onChange={e => setQ(e.target.value)}
-              placeholder="태스크, 프로젝트, 화이트보드, 시스템 검색..."
+              placeholder="태스크, 프로젝트, 이메일, 업무일지, 시스템 검색..."
               className="flex-1 text-sm text-slate-800 dark:text-slate-100 outline-none placeholder-slate-400 bg-transparent"
             />
             {isFetching && <span className="text-xs text-slate-400">검색 중...</span>}
             <kbd className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono">ESC</kbd>
           </div>
+
+          {/* 타입 필터 */}
+          {debouncedQ && hasResults && (
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-slate-100 dark:border-slate-800 overflow-x-auto">
+              {TYPE_FILTERS.map(([v, l]) => (
+                <button key={v} onClick={() => setTypeFilter(v)}
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium whitespace-nowrap transition-colors ${
+                    typeFilter === v
+                      ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 결과 */}
           {debouncedQ && (
@@ -70,7 +96,7 @@ export default function SearchModal({ onClose, onSelectTask }) {
                 </div>
               )}
 
-              {projects.length > 0 && (
+              {show('project') && projects.length > 0 && (
                 <div>
                   <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">프로젝트</div>
                   {projects.map(p => (
@@ -89,7 +115,7 @@ export default function SearchModal({ onClose, onSelectTask }) {
                 </div>
               )}
 
-              {tasks.length > 0 && (
+              {show('task') && tasks.length > 0 && (
                 <div>
                   <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">태스크</div>
                   {tasks.map(t => (
@@ -110,7 +136,39 @@ export default function SearchModal({ onClose, onSelectTask }) {
                 </div>
               )}
 
-              {whiteboards.length > 0 && (
+              {show('email') && emails.length > 0 && (
+                <div>
+                  <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">이메일</div>
+                  {emails.map(em => (
+                    <button key={em.id} onClick={() => { navigate('/emails'); onClose() }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left">
+                      <span className="text-slate-400 text-sm flex-shrink-0">✉</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{em.subject}</div>
+                        <div className="text-xs text-slate-400 truncate">{em.from_}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {show('work_log') && workLogs.length > 0 && (
+                <div>
+                  <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">업무일지</div>
+                  {workLogs.map(w => (
+                    <button key={w.id} onClick={() => { navigate('/worklog'); onClose() }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left">
+                      <span className="text-slate-400 text-sm flex-shrink-0">📝</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{w.log_date}</div>
+                        <div className="text-xs text-slate-400 truncate">{w.snippet}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {show('whiteboard') && whiteboards.length > 0 && (
                 <div>
                   <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">화이트보드</div>
                   {whiteboards.map(w => (
@@ -123,7 +181,7 @@ export default function SearchModal({ onClose, onSelectTask }) {
                 </div>
               )}
 
-              {systemLinks.length > 0 && (
+              {show('system_link') && systemLinks.length > 0 && (
                 <div>
                   <div className="px-4 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">시스템 바로가기</div>
                   {systemLinks.map(s => (
