@@ -86,6 +86,7 @@ export default function Whiteboard() {
 
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPos, setStartPos] = useState(null)
+  const [draft, setDraft] = useState(null)  // 드래그 중 실시간 프리뷰 (로컬 전용, 저장 안 됨)
   const [stageScale, setStageScale] = useState(1)
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
   const [editingText, setEditingText] = useState(null) // { id, x, y, value }
@@ -366,16 +367,6 @@ export default function Whiteboard() {
     const pos = getRelativePos()
     if (!pos) return
 
-    if (tool === 'sticky') {
-      snapshot()
-      const id = uuid()
-      addObject({ id, type: 'sticky', x: pos.x, y: pos.y, width: 140, height: 120, text: '', color: '#fde047', fontSize: 14 })
-      setTool('select')
-      selectObject(id)
-      setTimeout(() => openEditorFor({ id, x: pos.x, y: pos.y, text: '', width: 140, fontSize: 14, type: 'sticky' }), 50)
-      return
-    }
-
     if (tool === 'text') {
       snapshot()
       const id = uuid()
@@ -423,32 +414,54 @@ export default function Whiteboard() {
       if (lastObj?.type === 'pen') {
         updateObject(lastObj.id, { points: [...(lastObj.points || []), pos.x, pos.y] })
       }
+      return
+    }
+
+    // 도형/스티커: 드래그 중 실시간 프리뷰 (고스트)
+    if (tool === 'rectangle') {
+      setDraft({ type: 'rectangle', x: Math.min(startPos.x, pos.x), y: Math.min(startPos.y, pos.y),
+                 width: Math.abs(pos.x - startPos.x), height: Math.abs(pos.y - startPos.y), color })
+    } else if (tool === 'circle') {
+      setDraft({ type: 'circle', x: (startPos.x + pos.x) / 2, y: (startPos.y + pos.y) / 2,
+                 radius: Math.hypot(pos.x - startPos.x, pos.y - startPos.y) / 2, color })
+    } else if (tool === 'line') {
+      setDraft({ type: 'line', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
+    } else if (tool === 'arrow') {
+      setDraft({ type: 'arrow', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
+    } else if (tool === 'sticky') {
+      setDraft({ type: 'sticky', x: Math.min(startPos.x, pos.x), y: Math.min(startPos.y, pos.y),
+                 width: Math.max(60, Math.abs(pos.x - startPos.x)), height: Math.max(50, Math.abs(pos.y - startPos.y)) })
     }
   }
 
   const handleMouseUp = () => {
     if (!isDrawing || !startPos) return
-    const pos = getRelativePos()
-    if (!pos) { setIsDrawing(false); return }
+    const pos = getRelativePos() || startPos
+    const dragged = Math.hypot(pos.x - startPos.x, pos.y - startPos.y) > 5
 
     if (tool === 'rectangle') {
-      addObject({
-        type: 'rectangle',
-        x: Math.min(startPos.x, pos.x), y: Math.min(startPos.y, pos.y),
-        width: Math.abs(pos.x - startPos.x), height: Math.abs(pos.y - startPos.y),
-        color
-      })
+      // 클릭만 하면 기본 크기, 드래그하면 프리뷰 크기 그대로
+      addObject(dragged && draft ? { ...draft } : { type: 'rectangle', x: pos.x - 60, y: pos.y - 45, width: 120, height: 90, color })
     } else if (tool === 'circle') {
-      const radius = Math.sqrt(Math.pow(pos.x - startPos.x, 2) + Math.pow(pos.y - startPos.y, 2)) / 2
-      addObject({ type: 'circle', x: startPos.x, y: startPos.y, radius, color })
-    } else if (tool === 'line') {
+      addObject(dragged && draft ? { ...draft } : { type: 'circle', x: pos.x, y: pos.y, radius: 50, color })
+    } else if (tool === 'line' && dragged) {
       addObject({ type: 'line', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
-    } else if (tool === 'arrow') {
+    } else if (tool === 'arrow' && dragged) {
       addObject({ type: 'arrow', points: [startPos.x, startPos.y, pos.x, pos.y], color, brushSize })
+    } else if (tool === 'sticky') {
+      const id = uuid()
+      const box = dragged && draft
+        ? { x: draft.x, y: draft.y, width: draft.width, height: draft.height }
+        : { x: pos.x, y: pos.y, width: 140, height: 120 }
+      addObject({ id, type: 'sticky', ...box, text: '', color: '#fde047', fontSize: 14 })
+      setTool('select')
+      selectObject(id)
+      setTimeout(() => openEditorFor({ id, ...box, text: '', fontSize: 14, type: 'sticky' }), 50)
     }
 
     setIsDrawing(false)
     setStartPos(null)
+    setDraft(null)
   }
 
   // 휠로 확대/축소
@@ -723,6 +736,28 @@ export default function Whiteboard() {
                 }
                 return null
               })}
+
+              {/* 드래그 중 실시간 프리뷰 (고스트) */}
+              {draft?.type === 'rectangle' && (
+                <Rect listening={false} x={draft.x} y={draft.y} width={draft.width} height={draft.height}
+                  stroke={draft.color} strokeWidth={2} dash={[6, 4]} opacity={0.85} />
+              )}
+              {draft?.type === 'circle' && (
+                <Circle listening={false} x={draft.x} y={draft.y} radius={draft.radius}
+                  stroke={draft.color} strokeWidth={2} dash={[6, 4]} opacity={0.85} />
+              )}
+              {draft?.type === 'line' && (
+                <Line listening={false} points={draft.points} stroke={draft.color}
+                  strokeWidth={draft.brushSize} lineCap="round" opacity={0.7} dash={[8, 5]} />
+              )}
+              {draft?.type === 'arrow' && (
+                <Arrow listening={false} points={draft.points} stroke={draft.color} fill={draft.color}
+                  strokeWidth={draft.brushSize || 3} pointerLength={12} pointerWidth={12} lineCap="round" opacity={0.7} />
+              )}
+              {draft?.type === 'sticky' && (
+                <Rect listening={false} x={draft.x} y={draft.y} width={draft.width} height={draft.height}
+                  fill="#fde047" opacity={0.5} cornerRadius={4} stroke="#eab308" strokeWidth={1.5} dash={[6, 4]} />
+              )}
 
               {/* 크기 조정 핸들 */}
               {isSelectMode && (
