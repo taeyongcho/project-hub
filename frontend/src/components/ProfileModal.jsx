@@ -53,7 +53,7 @@ export default function ProfileModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">내 캐릭터</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
@@ -72,7 +72,7 @@ export default function ProfileModal({ onClose }) {
           <div className="flex flex-wrap gap-2">
             {COLORS.map(c => (
               <button key={c} onClick={() => setColor(c)}
-                className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'}`}
+                className={`w-7 h-7 flex-shrink-0 rounded-full border-2 ${color === c ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'}`}
                 style={{ background: c }} />
             ))}
           </div>
@@ -81,10 +81,10 @@ export default function ProfileModal({ onClose }) {
         {/* 캐릭터 */}
         <div className="mb-4">
           <div className="text-xs font-medium text-slate-500 mb-1.5">캐릭터</div>
-          <div className="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
+          <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 max-h-44 overflow-y-auto pr-1">
             {CHARACTERS.map(e => (
               <button key={e} onClick={() => setEmoji(e)}
-                className={`text-2xl p-1 rounded-lg transition-colors ${emoji === e ? 'bg-blue-100 dark:bg-blue-900 ring-2 ring-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                className={`aspect-square flex items-center justify-center text-xl sm:text-2xl leading-none rounded-lg transition-colors ${emoji === e ? 'bg-blue-100 dark:bg-blue-900 ring-2 ring-blue-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                 {e}
               </button>
             ))}
@@ -115,9 +115,9 @@ export default function ProfileModal({ onClose }) {
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">닫기</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm whitespace-nowrap text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">닫기</button>
           <button onClick={save} disabled={saving}
-            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">프로필 저장</button>
+            className="px-4 py-2 text-sm whitespace-nowrap bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">프로필 저장</button>
         </div>
       </div>
     </div>
