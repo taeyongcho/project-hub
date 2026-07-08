@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.config import settings
 from app.core.socketio import sio
-from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor, organization
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor, organization, nas
 
 
 @asynccontextmanager
@@ -198,6 +198,7 @@ app.include_router(system_links.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(cert_monitor.router, prefix="/api")
 app.include_router(organization.router, prefix="/api")
+app.include_router(nas.router, prefix="/api")
 
 
 @app.get("/api/health")

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2 } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2, HardDrive, Folder, ChevronRight, Upload } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -75,6 +75,7 @@ export default function Chat() {
   const [sideTab, setSideTab] = useState('talks')  // 'talks' 대화 | 'people' 사람
   const [onlineIds, setOnlineIds] = useState([])
   const [forwardMsg, setForwardMsg] = useState(null)  // 전달할 메시지
+  const [showNas, setShowNas] = useState(false)       // NAS 자료실 모달
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
@@ -611,6 +612,10 @@ export default function Chat() {
               <Paperclip size={18} />
               <input type="file" className="hidden" onChange={e => { uploadAndSend(e.target.files[0]); e.target.value = '' }} />
             </label>
+            <button onClick={() => setShowNas(true)}
+              className="p-2.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="부서 자료실 (NAS)">
+              <HardDrive size={18} />
+            </button>
             <input value={text} onChange={e => setText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
               onFocus={() => setPicker(null)}
@@ -640,6 +645,126 @@ export default function Chat() {
           onClose={() => setForwardMsg(null)}
           onSent={(label) => { setForwardMsg(null); qc.invalidateQueries({ queryKey: ['chat-convos'] }) }} />
       )}
+
+      {showNas && (
+        <NasModal onClose={() => setShowNas(false)}
+          onAttach={async (meta) => { await sendMsg({ attachment: meta }); setShowNas(false) }} />
+      )}
+    </div>
+  )
+}
+
+function fmtNasSize(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB'
+  if (n >= 1024) return (n / 1024).toFixed(0) + ' KB'
+  return n + ' B'
+}
+
+function NasModal({ onClose, onAttach }) {
+  const [path, setPath] = useState('')
+  const [busy, setBusy] = useState(false)
+  const upRef = useRef(null)
+  const qc2 = useQueryClient()
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['nas-list', path],
+    queryFn: () => api.get('/nas/list', { params: { path } }).then(r => r.data),
+  })
+
+  const crumbs = path ? path.split('/') : []
+  const goTo = (idx) => setPath(idx < 0 ? '' : crumbs.slice(0, idx + 1).join('/'))
+
+  const attach = async (name) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const meta = await api.post('/nas/attach', { path: `${path ? path + '/' : ''}${name}` }).then(r => r.data)
+      await onAttach(meta)
+    } catch (e) {
+      alert(e.response?.data?.detail || '첨부 실패')
+      setBusy(false)
+    }
+  }
+
+  const upload = async (file) => {
+    if (!file) return
+    setBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      await api.post(`/nas/upload?path=${encodeURIComponent(path)}`, fd)
+      qc2.invalidateQueries({ queryKey: ['nas-list', path] })
+    } catch (e) {
+      alert(e.response?.data?.detail || '업로드 실패')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md max-h-[75vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+            <HardDrive size={16} /> 부서 자료실
+          </span>
+          <div className="flex items-center gap-1">
+            {data?.can_write && (
+              <>
+                <button onClick={() => upRef.current?.click()} disabled={busy}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 font-medium disabled:opacity-50">
+                  <Upload size={13} /> 업로드
+                </button>
+                <input ref={upRef} type="file" className="hidden" onChange={e => { upload(e.target.files[0]); e.target.value = '' }} />
+              </>
+            )}
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1"><X size={18} /></button>
+          </div>
+        </div>
+
+        {/* 경로 */}
+        <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 overflow-x-auto whitespace-nowrap">
+          <button onClick={() => goTo(-1)} className="hover:text-blue-600 font-medium">전체</button>
+          {crumbs.map((c, i) => (
+            <span key={i} className="flex items-center gap-1">
+              <ChevronRight size={12} className="text-slate-300" />
+              <button onClick={() => goTo(i)} className="hover:text-blue-600">{c}</button>
+            </span>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-1">
+          {isLoading ? (
+            <div className="text-center text-xs text-slate-400 py-10">불러오는 중...</div>
+          ) : isError ? (
+            <div className="text-center text-xs text-slate-400 py-10">NAS에 연결할 수 없습니다.<br />관리자에게 문의하세요.</div>
+          ) : (data?.dirs?.length === 0 && data?.files?.length === 0) ? (
+            <div className="text-center text-xs text-slate-400 py-10">빈 폴더입니다</div>
+          ) : (
+            <>
+              {data.dirs.map(d => (
+                <button key={d.name} onClick={() => setPath(path ? `${path}/${d.name}` : d.name)}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                  <Folder size={16} className={`flex-shrink-0 ${d.name === data.my_dept ? 'text-blue-500' : 'text-amber-400'}`} />
+                  <span className="text-sm text-slate-800 dark:text-slate-100 truncate">{d.name}</span>
+                  {d.name === data.my_dept && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium">내 부서</span>}
+                </button>
+              ))}
+              {data.files.map(f => (
+                <button key={f.name} onClick={() => attach(f.name)} disabled={busy}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 disabled:opacity-50 transition-colors"
+                  title="클릭하면 채팅에 첨부됩니다">
+                  <FileText size={16} className="text-slate-400 flex-shrink-0" />
+                  <span className="text-sm text-slate-800 dark:text-slate-100 truncate flex-1">{f.name}</span>
+                  <span className="text-[10px] text-slate-400 flex-shrink-0">{fmtNasSize(f.size)}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
+          파일 클릭 → 현재 대화방에 첨부 · 업로드는 내 부서 폴더만 가능
+        </div>
+      </div>
     </div>
   )
 }

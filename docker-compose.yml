@@ -61,6 +61,8 @@ services:
       - ./backend:/app
       - email_storage:/app/emails
       - chat_uploads:/app/uploads
+      # NAS 부서 자료실 (서버 .env에 NAS_MOUNT=/mnt/works, 로컬은 빈 폴더)
+      - ${NAS_MOUNT:-./nas-local}:/app/nas
 
   frontend:
     build: ./frontend
