@@ -130,8 +130,12 @@ async def get_file(stored: str):
 async def list_channels(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     proj_rows = await db.execute(select(Project).where(Project.status == "active"))
     projects = [{"id": p.id, "name": p.name, "color": p.color} for p in proj_rows.scalars().all()]
-    user_rows = await db.execute(select(User).where(User.is_active == True, User.id != current_user.id))
+    user_rows = await db.execute(
+        select(User).where(User.is_active == True, User.id != current_user.id)
+        .order_by(User.dept_name.nullslast(), User.name)
+    )
     users = [{"id": u.id, "name": u.name, "role": u.role,
+              "dept_name": getattr(u, "dept_name", None),
               "avatar_emoji": u.avatar_emoji, "avatar_color": u.avatar_color} for u in user_rows.scalars().all()]
     ai = await _get_ai_user(db)
     ai_info = {"id": ai.id, "name": ai.name, "avatar_emoji": ai.avatar_emoji,

@@ -67,6 +67,7 @@ export default function Chat() {
   const [stickerTab, setStickerTab] = useState('emoji') // 'emoji' | 'image'
   const [reactFor, setReactFor] = useState(null) // 반응 팔레트 대상 메시지 id
   const [aiTyping, setAiTyping] = useState(false)
+  const [dmSearch, setDmSearch] = useState('')
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
@@ -253,14 +254,27 @@ export default function Chat() {
 
           {/* DM */}
           <div className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">다이렉트 메시지</div>
-          {channels?.users?.map(u => {
-            const ch = dmChannel(user.id, u.id)
-            return (
-              <ChannelItem key={u.id} active={channel === ch} onClick={() => pick(ch, u.name)}
-                icon={<Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={20} />}
-                label={u.name} badge={unread?.channels?.[ch]} />
-            )
-          })}
+          <div className="px-3 pb-1.5">
+            <input value={dmSearch} onChange={e => setDmSearch(e.target.value)}
+              placeholder="이름·부서 검색"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+          {(() => {
+            const q = dmSearch.trim().toLowerCase()
+            const filtered = (channels?.users || []).filter(u =>
+              !q || u.name.toLowerCase().includes(q) || (u.dept_name || '').toLowerCase().includes(q))
+            if (filtered.length === 0) {
+              return <div className="px-4 py-3 text-xs text-slate-400">검색 결과 없음</div>
+            }
+            return filtered.map(u => {
+              const ch = dmChannel(user.id, u.id)
+              return (
+                <ChannelItem key={u.id} active={channel === ch} onClick={() => pick(ch, u.name)}
+                  icon={<Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={20} />}
+                  label={u.name} sub={u.dept_name} badge={unread?.channels?.[ch]} />
+              )
+            })
+          })()}
         </div>
       </div>
 
@@ -553,14 +567,17 @@ function MsgActions({ onReply, onReact }) {
   )
 }
 
-function ChannelItem({ active, onClick, icon, label, badge }) {
+function ChannelItem({ active, onClick, icon, label, sub, badge }) {
   return (
     <button onClick={onClick}
       className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
         active ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-medium' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
       }`}>
       <span className="flex-shrink-0 flex items-center justify-center w-5">{icon}</span>
-      <span className="truncate flex-1 text-left">{label}</span>
+      <span className="truncate flex-1 text-left">
+        {label}
+        {sub && <span className="block text-[10px] text-slate-400 truncate leading-tight">{sub}</span>}
+      </span>
       {badge > 0 && !active && (
         <span className="flex-shrink-0 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{badge}</span>
       )}
