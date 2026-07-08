@@ -840,10 +840,17 @@ function ChatCalendar({ myId }) {
   })
 
   const byDate = {}
+  const pushDay = (key, item) => { (byDate[key] = byDate[key] || []).push(item) }
   for (const t of data?.tasks || []) {
     if (mineOnly && t.assigned_to_id !== myId) continue
-    if (t.due_date && t.status !== 'done') {
-      (byDate[t.due_date] = byDate[t.due_date] || []).push({ kind: 'task', ...t })
+    if (t.status === 'done') continue
+    if (t.start_date && t.due_date && t.start_date !== t.due_date) {
+      pushDay(t.start_date, { kind: 'task', tag: '시작', ...t })
+      pushDay(t.due_date, { kind: 'task', tag: '마감', ...t })
+    } else if (t.due_date) {
+      pushDay(t.due_date, { kind: 'task', ...t })
+    } else if (t.start_date) {
+      pushDay(t.start_date, { kind: 'task', tag: '시작', ...t })
     }
   }
   for (const m of data?.milestones || []) {
@@ -899,6 +906,11 @@ function ChatCalendar({ myId }) {
                     : <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                         it.priority === 'urgent' ? 'bg-red-500' : it.priority === 'high' ? 'bg-amber-500' : 'bg-blue-500'}`} />}
                   <span className="truncate">{it.title}</span>
+                  {it.tag && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                      it.tag === '마감' ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                    }`}>{it.tag}</span>
+                  )}
                   {it.kind === 'ms' && it.project_name && <span className="text-[10px] text-slate-400 flex-shrink-0">{it.project_name}</span>}
                 </div>
               ))}

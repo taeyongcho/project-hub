@@ -28,8 +28,15 @@ async def calendar(
     task_rows = (await db.execute(
         select(Task).where(
             or_(
-                and_(Task.due_date != None, Task.due_date >= d_start, Task.due_date <= d_end),
-                and_(Task.start_date != None, Task.start_date >= d_start, Task.start_date <= d_end),
+                # 기간(시작~마감)이 조회 범위와 겹치는 태스크
+                and_(Task.start_date != None, Task.due_date != None,
+                     Task.start_date <= d_end, Task.due_date >= d_start),
+                # 마감일만 있는 태스크
+                and_(Task.start_date == None, Task.due_date != None,
+                     Task.due_date >= d_start, Task.due_date <= d_end),
+                # 시작일만 있는 태스크
+                and_(Task.due_date == None, Task.start_date != None,
+                     Task.start_date >= d_start, Task.start_date <= d_end),
             )
         )
     )).scalars().all()

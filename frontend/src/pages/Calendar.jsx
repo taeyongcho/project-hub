@@ -45,13 +45,27 @@ export default function Calendar() {
     const push = (key, item) => { (map[key] = map[key] || []).push(item) }
     for (const t of data?.tasks || []) {
       if (mineOnly && t.assigned_to_id !== user?.id) continue
-      if (t.due_date) push(t.due_date, { kind: 'task', ...t })
+      if (t.start_date && t.due_date && t.start_date !== t.due_date) {
+        // 기간 태스크: 시작~마감 전 기간에 표시 (그리드 범위로 클램프)
+        let d = dayjs(t.start_date).isBefore(gridStart) ? gridStart : dayjs(t.start_date)
+        const last = dayjs(t.due_date).isAfter(gridEnd) ? gridEnd : dayjs(t.due_date)
+        while (d.isBefore(last) || d.isSame(last, 'day')) {
+          const key = d.format('YYYY-MM-DD')
+          const pos = key === t.start_date ? 'start' : key === t.due_date ? 'end' : 'mid'
+          push(key, { kind: 'task', span: pos, ...t })
+          d = d.add(1, 'day')
+        }
+      } else if (t.due_date) {
+        push(t.due_date, { kind: 'task', ...t })
+      } else if (t.start_date) {
+        push(t.start_date, { kind: 'task', span: 'start', ...t })
+      }
     }
     for (const m of data?.milestones || []) {
       push(m.due_date, { kind: 'milestone', ...m })
     }
     return map
-  }, [data, mineOnly, user])
+  }, [data, mineOnly, user, gridStart, gridEnd])
 
   const today = dayjs().format('YYYY-MM-DD')
   const monthNum = cursor.month()
@@ -129,12 +143,17 @@ export default function Calendar() {
                       <span className="truncate">{it.title}</span>
                     </div>
                   ) : (
-                    <button key={`t${it.id}`}
+                    <button key={`t${it.id}-${i}`}
                       onClick={() => ctx.onSelectTask && ctx.onSelectTask(it.id)}
-                      className={`w-full flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded truncate text-left bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors ${STATUS_STYLE[it.status] || ''}`}
-                      title={it.title}>
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PRIORITY_DOT[it.priority] || 'bg-slate-400'}`} />
-                      <span className="truncate">{it.title}</span>
+                      className={`w-full flex items-center gap-1 text-[11px] px-1.5 py-0.5 truncate text-left bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors ${STATUS_STYLE[it.status] || ''} ${
+                        it.span === 'mid' ? 'opacity-60 rounded-none' : it.span === 'start' ? 'rounded-l rounded-r-none' : it.span === 'end' ? 'rounded-r rounded-l-none font-medium' : 'rounded'
+                      }`}
+                      title={`${it.title}${it.span ? ` (${it.start_date || ''}~${it.due_date || ''})` : ''}`}>
+                      {it.span !== 'mid' && it.span !== 'end' && (
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${PRIORITY_DOT[it.priority] || 'bg-slate-400'}`} />
+                      )}
+                      {it.span === 'end' && <span className="flex-shrink-0">🏁</span>}
+                      <span className="truncate">{it.span === 'mid' ? '│ ' + it.title : it.title}</span>
                     </button>
                   ))}
                   {items.length > 4 && (
