@@ -23,7 +23,9 @@ export default function Tasks() {
   const { onSelectTask } = useOutletContext()
   const [filter, setFilter] = useState('mine')
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', priority: 'normal', due_date: '', project_id: '', assigned_to_id: '' })
+  const [form, setForm] = useState({ title: '', priority: 'normal', due_date: '', project_id: '', assignee_ids: [] })
+  const [assigneeSearch, setAssigneeSearch] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const params = filter === 'mine' ? `?assigned_to_id=${user?.id}` :
     filter === 'overdue' ? '' : '?status=in_progress'
@@ -43,16 +45,31 @@ export default function Tasks() {
     queryFn: () => api.get('/users').then(r => r.data)
   })
 
-  const createMut = useMutation({
-    mutationFn: data => api.post('/tasks', data),
-    onSuccess: () => {
+  const createTasks = async () => {
+    if (!form.title.trim() || creating) return
+    setCreating(true)
+    const base = {
+      title: form.title.trim(), priority: form.priority,
+      project_id: form.project_id ? parseInt(form.project_id) : null,
+      due_date: form.due_date || null,
+    }
+    try {
+      const ids = form.assignee_ids
+      if (ids.length === 0) {
+        await api.post('/tasks', { ...base, assigned_to_id: null })
+      } else {
+        // 담당자 수만큼 각자에게 동일한 할일 생성
+        await Promise.all(ids.map(id => api.post('/tasks', { ...base, assigned_to_id: id })))
+      }
       qc.invalidateQueries({ queryKey: ['all-tasks'] })
       setShowForm(false)
-      setForm({ title: '', priority: 'normal', due_date: '', project_id: '', assigned_to_id: '' })
-      toast.success('할일이 생성되었습니다')
-    },
-    onError: (err) => toast.error(err.response?.data?.detail || '할일 생성 실패')
-  })
+      setForm({ title: '', priority: 'normal', due_date: '', project_id: '', assignee_ids: [] })
+      setAssigneeSearch('')
+      toast.success(ids.length > 1 ? `${ids.length}명에게 할일이 배정되었습니다` : '할일이 생성되었습니다')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || '할일 생성 실패')
+    } finally { setCreating(false) }
+  }
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/tasks/${id}`, { status }),
@@ -123,22 +140,41 @@ export default function Tasks() {
               <option value="">프로젝트 (선택)</option>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-            <select value={form.assigned_to_id} onChange={e => setForm(p => ({ ...p, assigned_to_id: e.target.value }))} className={sel()}>
-              <option value="">담당자 (선택)</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
+            <div className="col-span-2">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">담당자 (여러 명 선택 가능 — 각자에게 할일 생성)</span>
+                {form.assignee_ids.length > 0 && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">{form.assignee_ids.length}명 선택됨</span>
+                )}
+              </div>
+              <input value={assigneeSearch} onChange={e => setAssigneeSearch(e.target.value)}
+                placeholder="이름 검색..." className={`${sel()} mb-1.5`} />
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1">
+                {users
+                  .filter(u => !assigneeSearch || u.name.toLowerCase().includes(assigneeSearch.toLowerCase()))
+                  .slice(0, 30)
+                  .map(u => {
+                    const on = form.assignee_ids.includes(u.id)
+                    return (
+                      <button key={u.id} type="button"
+                        onClick={() => setForm(p => ({ ...p, assignee_ids: on ? p.assignee_ids.filter(x => x !== u.id) : [...p.assignee_ids, u.id] }))}
+                        className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                          on ? 'bg-blue-600 border-blue-600 text-white'
+                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400'
+                        }`}>
+                        {u.name}
+                      </button>
+                    )
+                  })}
+              </div>
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)}
               className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 px-4 py-2 transition-colors">취소</button>
-            <button onClick={() => form.title && createMut.mutate({
-              ...form,
-              project_id: form.project_id ? parseInt(form.project_id) : null,
-              assigned_to_id: form.assigned_to_id ? parseInt(form.assigned_to_id) : null,
-              due_date: form.due_date || null
-            })}
-              className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
-              추가
+            <button onClick={createTasks} disabled={creating}
+              className="text-sm bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl font-medium transition-colors">
+              {creating ? '생성 중...' : form.assignee_ids.length > 1 ? `${form.assignee_ids.length}명에게 추가` : '추가'}
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String, Date, ForeignKey, DateTime, func, Text
+from sqlalchemy import Integer, String, Date, ForeignKey, DateTime, func, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -21,6 +21,7 @@ class Task(Base):
     parent_id: Mapped[int] = mapped_column(Integer, ForeignKey("tasks.id"), nullable=True)
     wbs_order: Mapped[int] = mapped_column(Integer, default=0)
     start_date: Mapped[Date] = mapped_column(Date, nullable=True)
+    attachments: Mapped[list] = mapped_column(JSON, default=list)  # [{url,name,size,type}]
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     project = relationship("Project", back_populates="tasks")

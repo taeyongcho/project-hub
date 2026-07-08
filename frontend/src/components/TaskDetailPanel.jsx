@@ -26,6 +26,7 @@ export default function TaskDetailPanel({ taskId, onClose }) {
   const [editDesc, setEditDesc] = useState(false)
   const [desc, setDesc] = useState('')
   const [commentText, setCommentText] = useState('')
+  const [attaching, setAttaching] = useState(false)
 
   const { data: task, isLoading } = useQuery({
     queryKey: ['task', taskId],
@@ -94,6 +95,19 @@ export default function TaskDetailPanel({ taskId, onClose }) {
   })
 
   const update = data => updateMut.mutate(data)
+
+  const attachFile = async (file) => {
+    if (!file) return
+    setAttaching(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const meta = await api.post('/chat/upload', fd).then(r => r.data)
+      update({ attachments: [...(task?.attachments || []), meta] })
+    } catch (e) {
+      alert(e.response?.data?.detail || '업로드 실패 (최대 20MB)')
+    } finally { setAttaching(false) }
+  }
 
   const assignee = users.find(u => u.id === task?.assigned_to_id)
   const project = projects.find(p => p.id === task?.project_id)
@@ -269,6 +283,34 @@ export default function TaskDetailPanel({ taskId, onClose }) {
                     className="min-h-[80px] bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 cursor-text hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-pre-wrap border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                   >
                     {task?.description || <span className="text-slate-400">설명 추가...</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* 첨부파일 */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-slate-400">첨부파일 {(task?.attachments?.length || 0) > 0 && `(${task.attachments.length})`}</label>
+                  <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                    {attaching ? '업로드 중...' : '+ 파일 추가'}
+                    <input type="file" className="hidden" disabled={attaching}
+                      onChange={e => { attachFile(e.target.files[0]); e.target.value = '' }} />
+                  </label>
+                </div>
+                {(task?.attachments || []).length === 0 ? (
+                  <div className="text-xs text-slate-300 dark:text-slate-600 px-1">첨부된 파일이 없습니다</div>
+                ) : (
+                  <div className="space-y-1">
+                    {task.attachments.map((a, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 rounded-lg px-2.5 py-1.5 group">
+                        <span className="text-slate-400 text-sm flex-shrink-0">📎</span>
+                        <a href={a.url} target="_blank" rel="noopener noreferrer" download
+                          className="text-sm text-slate-700 dark:text-slate-200 hover:text-blue-600 truncate flex-1">{a.name}</a>
+                        <span className="text-[10px] text-slate-400 flex-shrink-0">{a.size >= 1048576 ? (a.size/1048576).toFixed(1)+'MB' : Math.round((a.size||0)/1024)+'KB'}</span>
+                        <button onClick={() => update({ attachments: task.attachments.filter((_, j) => j !== i) })}
+                          className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-xs flex-shrink-0">✕</button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

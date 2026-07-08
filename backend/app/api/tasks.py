@@ -29,6 +29,7 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     status: str | None = None
     priority: str | None = None
+    attachments: list | None = None
     start_date: date | None = None
     due_date: date | None = None
     milestone_id: int | None = None

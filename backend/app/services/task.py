@@ -110,4 +110,5 @@ def _t(t: Task) -> dict:
             "project_id": t.project_id, "milestone_id": t.milestone_id,
             "assigned_to_id": t.assigned_to_id, "email_id": t.email_id,
             "parent_id": t.parent_id, "wbs_order": t.wbs_order or 0,
+            "attachments": t.attachments or [],
             "created_by_id": t.created_by_id, "created_at": str(t.created_at)}
