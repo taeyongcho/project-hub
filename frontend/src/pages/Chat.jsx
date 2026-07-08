@@ -829,8 +829,9 @@ function ChatTasks({ myId }) {
 }
 
 function ChatCalendar({ myId }) {
+  const [mineOnly, setMineOnly] = useState(false)
   const start = dayjs().startOf('day')
-  const end = start.add(13, 'day')
+  const end = start.add(59, 'day')
   const { data } = useQuery({
     queryKey: ['popup-cal', myId],
     queryFn: () => api.get('/dashboard/calendar', {
@@ -840,7 +841,8 @@ function ChatCalendar({ myId }) {
 
   const byDate = {}
   for (const t of data?.tasks || []) {
-    if (t.assigned_to_id === myId && t.due_date && t.status !== 'done') {
+    if (mineOnly && t.assigned_to_id !== myId) continue
+    if (t.due_date && t.status !== 'done') {
       (byDate[t.due_date] = byDate[t.due_date] || []).push({ kind: 'task', ...t })
     }
   }
@@ -848,13 +850,32 @@ function ChatCalendar({ myId }) {
     (byDate[m.due_date] = byDate[m.due_date] || []).push({ kind: 'ms', ...m })
   }
 
-  const days = Array.from({ length: 14 }, (_, i) => start.add(i, 'day'))
+  const days = Array.from({ length: 60 }, (_, i) => start.add(i, 'day'))
+  const total = Object.values(byDate).reduce((a, v) => a + v.length, 0)
   const DOW = ['일', '월', '화', '수', '목', '금', '토']
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4">
       <div className="max-w-lg mx-auto space-y-1.5">
-        <div className="text-xs text-slate-400 mb-2">앞으로 2주 — 내 마감 + 마일스톤</div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-slate-400">앞으로 60일 — 마감 + 마일스톤</span>
+          <div className="flex gap-1">
+            {[[false, '전체'], [true, '내 일정']].map(([v, l]) => (
+              <button key={l} onClick={() => setMineOnly(v)}
+                className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors ${
+                  mineOnly === v
+                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                }`}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {total === 0 && (
+          <div className="text-center text-sm text-slate-400 py-10">
+            {mineOnly ? '60일 내 내 일정이 없습니다' : '60일 내 마감 일정이 없습니다'}<br />
+            <span className="text-xs">할일에 마감일을 지정하면 여기 표시됩니다</span>
+          </div>
+        )}
         {days.map(d => {
           const key = d.format('YYYY-MM-DD')
           const items = byDate[key] || []
