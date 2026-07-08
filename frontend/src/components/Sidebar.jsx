@@ -102,7 +102,7 @@ export default memo(function Sidebar({ onSelectTask, onNavigate }) {
           </button>
           <div className="min-w-0">
             <div className="text-sm font-bold text-slate-900 dark:text-white truncate">{user?.name}</div>
-            <div className="text-[11px] text-slate-400">Project Hub</div>
+            <div className="text-[11px] text-slate-400">어센틱웍스</div>
           </div>
         </div>
 

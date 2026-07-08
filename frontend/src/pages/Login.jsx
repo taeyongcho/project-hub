@@ -30,9 +30,9 @@ export default function Login() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-white text-xl font-bold">P</span>
+            <span className="text-white text-xl font-bold">A</span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">Project Hub</div>
+          <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">어센틱웍스</div>
           <div className="text-sm text-slate-500 dark:text-slate-400">팀 업무 통합 관리 시스템</div>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-card border border-slate-200 dark:border-slate-700 space-y-4">

@@ -177,7 +177,7 @@ async def _auto_generate_reports():
             print(f"보고서 자동 생성 오류: {e}")
 
 
-app = FastAPI(title="Project Hub API", lifespan=lifespan, redirect_slashes=False)
+app = FastAPI(title="어센틱웍스 API", lifespan=lifespan, redirect_slashes=False)
 
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origin_list,
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])

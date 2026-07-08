@@ -29,7 +29,7 @@ export default function Layout() {
           <button onClick={() => setMobileOpen(true)} className="text-slate-600 dark:text-slate-300">
             <Menu size={22} />
           </button>
-          <span className="font-bold text-slate-900 dark:text-white">Project Hub</span>
+          <span className="font-bold text-slate-900 dark:text-white">어센틱웍스</span>
         </div>
 
         <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950">
