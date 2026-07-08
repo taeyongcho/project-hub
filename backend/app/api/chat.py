@@ -446,6 +446,87 @@ async def unread(db: AsyncSession = Depends(get_db), current_user: User = Depend
     return {"total": total, "channels": per}
 
 
+@router.get("/conversations")
+async def conversations(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """대화가 있는 방 목록 (LINE식): 마지막 메시지·시간·안읽음, 최신순"""
+    reads = (await db.execute(select(ChatRead).where(ChatRead.user_id == current_user.id))).scalars().all()
+    read_map = {r.channel: r.last_read_at for r in reads}
+
+    # 채널별 마지막 메시지 시각
+    ch_rows = (await db.execute(
+        select(ChatMessage.channel, func.max(ChatMessage.created_at).label("last_at"))
+        .group_by(ChatMessage.channel)
+    )).all()
+
+    # 라벨 해석용 맵
+    users_map = {u.id: u for u in (await db.execute(select(User))).scalars().all()}
+    projects_map = {p.id: p for p in (await db.execute(select(Project))).scalars().all()}
+    groups_map = {g.id: g for g in (await db.execute(select(ChatGroup))).scalars().all()}
+    ai = await _get_ai_user(db)
+
+    out = []
+    for ch, last_at in ch_rows:
+        if not await _can_access_channel(ch, current_user, db):
+            continue
+        last_msg = (await db.execute(
+            select(ChatMessage).where(ChatMessage.channel == ch)
+            .order_by(ChatMessage.created_at.desc()).limit(1)
+        )).scalars().first()
+        if not last_msg:
+            continue
+
+        # 안읽음 수
+        last_read = read_map.get(ch)
+        cond = [ChatMessage.channel == ch, ChatMessage.sender_id != current_user.id]
+        if last_read is not None:
+            cond.append(ChatMessage.created_at > last_read)
+        unread_cnt = await db.scalar(select(func.count(ChatMessage.id)).where(*cond)) or 0
+
+        # 라벨/아이콘 해석
+        label, kind, avatar = ch, "channel", None
+        if ch == "team":
+            label, kind = "전체 팀", "team"
+        elif ch.startswith("project:"):
+            p = projects_map.get(int(ch.split(":")[1]) if ch.split(":")[1].isdigit() else -1)
+            if not p:
+                continue
+            label, kind, avatar = p.name, "project", {"color": p.color}
+        elif ch.startswith("group:"):
+            g = groups_map.get(int(ch.split(":")[1]) if ch.split(":")[1].isdigit() else -1)
+            if not g:
+                continue
+            label, kind = g.name, "group"
+        elif ch.startswith("ai:"):
+            label, kind = "AI 사원", "ai"
+            if ai:
+                avatar = {"emoji": ai.avatar_emoji, "color": ai.avatar_color}
+        elif ch.startswith("dm:"):
+            try:
+                a, b = ch[3:].split("-")
+                other_id = int(b) if int(a) == current_user.id else int(a)
+            except ValueError:
+                continue
+            other = users_map.get(other_id)
+            if not other:
+                continue
+            label, kind = other.name, "dm"
+            avatar = {"emoji": other.avatar_emoji, "color": other.avatar_color,
+                      "dept": getattr(other, "dept_name", None)}
+
+        sender = users_map.get(last_msg.sender_id)
+        preview = "📎 파일" if last_msg.attachment else (last_msg.content or "")[:60]
+        out.append({
+            "channel": ch, "label": label, "kind": kind, "avatar": avatar,
+            "preview": preview,
+            "sender_name": sender.name if sender else "",
+            "last_at": last_at.isoformat() if last_at else None,
+            "unread": unread_cnt,
+        })
+
+    out.sort(key=lambda x: x["last_at"] or "", reverse=True)
+    return out
+
+
 @router.get("/stickers")
 async def list_stickers(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     rows = await db.execute(select(StickerAsset).order_by(StickerAsset.created_at.desc()).limit(60))

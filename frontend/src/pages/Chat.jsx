@@ -68,6 +68,7 @@ export default function Chat() {
   const [reactFor, setReactFor] = useState(null) // 반응 팔레트 대상 메시지 id
   const [aiTyping, setAiTyping] = useState(false)
   const [dmSearch, setDmSearch] = useState('')
+  const [sideTab, setSideTab] = useState('talks')  // 'talks' 대화 | 'people' 사람
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
@@ -90,6 +91,12 @@ export default function Chat() {
     queryFn: () => api.get('/chat/groups').then(r => r.data)
   })
 
+  const { data: convos = [] } = useQuery({
+    queryKey: ['chat-convos'],
+    queryFn: () => api.get('/chat/conversations').then(r => r.data),
+    refetchInterval: 15000,
+  })
+
   // 소켓 1회 연결
   useEffect(() => {
     if (!user?.id) return
@@ -100,6 +107,7 @@ export default function Chat() {
         setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
       }
       qc.invalidateQueries({ queryKey: ['chat-unread'] })
+      qc.invalidateQueries({ queryKey: ['chat-convos'] })
     })
     socket.on('chat_update', (upd) => {
       if (upd.channel === channelRef.current) {
@@ -215,10 +223,64 @@ export default function Chat() {
     <div className="flex h-full overflow-hidden">
       {/* 채널 목록 */}
       <div className={`${isPopup ? 'w-40' : 'w-60'} border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col flex-shrink-0`}>
-        <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800">
-          <h1 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><MessageSquare size={20} /> 채팅</h1>
+        <div className="px-4 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <h1 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2.5"><MessageSquare size={20} /> 채팅</h1>
+          <div className="flex gap-1">
+            {[['talks', '💬 대화'], ['people', '👥 사람']].map(([v, l]) => (
+              <button key={v} onClick={() => setSideTab(v)}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${
+                  sideTab === v
+                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}>
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto py-2">
+
+        {/* 대화 탭: 메시지가 있는 방만, 최신순 */}
+        {sideTab === 'talks' && (
+          <div className="flex-1 overflow-y-auto py-1">
+            {convos.length === 0 ? (
+              <div className="px-4 py-8 text-center text-xs text-slate-400">
+                대화가 없습니다.<br />👥 사람 탭에서 대화를 시작해보세요.
+              </div>
+            ) : convos.map(c => {
+              const isActive = channel === c.channel
+              const t = c.last_at ? (dayjs(c.last_at).isSame(dayjs(), 'day') ? dayjs(c.last_at).format('HH:mm') : dayjs(c.last_at).format('MM/DD')) : ''
+              return (
+                <button key={c.channel} onClick={() => pick(c.channel, c.label)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                    isActive ? 'bg-blue-50 dark:bg-blue-950' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                  }`}>
+                  <span className="flex-shrink-0">
+                    {c.kind === 'dm' || c.kind === 'ai'
+                      ? <Avatar emoji={c.avatar?.emoji} color={c.avatar?.color} size={isPopup ? 26 : 34} />
+                      : c.kind === 'project'
+                        ? <span className="w-[34px] h-[34px] rounded-full flex items-center justify-center" style={{ background: (c.avatar?.color || '#64748b') + '22' }}><span className="w-2.5 h-2.5 rounded-full" style={{ background: c.avatar?.color || '#64748b' }} /></span>
+                        : <span className="w-[34px] h-[34px] rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">{c.kind === 'group' ? <UsersRound size={16} className="text-slate-500" /> : <Hash size={16} className="text-slate-500" />}</span>}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-1">
+                      <span className={`text-sm truncate ${isActive ? 'text-blue-700 dark:text-blue-300 font-semibold' : 'text-slate-800 dark:text-slate-100 font-medium'}`}>{c.label}</span>
+                      <span className="text-[10px] text-slate-400 flex-shrink-0">{t}</span>
+                    </span>
+                    <span className="flex items-center justify-between gap-1">
+                      <span className="text-xs text-slate-400 truncate">{c.preview || ' '}</span>
+                      {c.unread > 0 && !isActive && (
+                        <span className="flex-shrink-0 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold min-w-[18px] text-center">{c.unread}</span>
+                      )}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* 사람 탭: 디렉터리 (새 대화 시작) */}
+        <div className={`flex-1 overflow-y-auto py-2 ${sideTab === 'people' ? '' : 'hidden'}`}>
           {/* 팀 채널 */}
           <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-widest text-slate-400 font-semibold">채널</div>
           <ChannelItem active={channel === 'team'} onClick={() => pick('team', '전체 팀')} icon={<Hash size={16} />} label="전체 팀" badge={unread?.channels?.['team']} />
