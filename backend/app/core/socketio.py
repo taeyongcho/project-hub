@@ -14,6 +14,8 @@ sio = AsyncServer(
 board_users: Dict[int, Set[str]] = {}
 # 사용자 정보
 user_info: Dict[str, Dict] = {}
+# 온라인 사용자 (user_id -> 접속 sid 집합)
+online_users: Dict[int, Set[str]] = {}
 
 
 @sio.event
@@ -62,6 +64,17 @@ async def handle_delta(sid, data):
     board_id = data.get('boardId')
     if board_id:
         await sio.emit('delta', data, room=f'board_{board_id}', skip_sid=sid)
+
+
+@sio.on('presence_join')
+async def presence_join(sid, data):
+    """접속 상태 등록 → 전체에 온라인 목록 브로드캐스트"""
+    uid = data.get('userId')
+    if not uid:
+        return
+    online_users.setdefault(uid, set()).add(sid)
+    user_info.setdefault(sid, {})['presence_uid'] = uid
+    await sio.emit('presence', {'online': list(online_users.keys())})
 
 
 @sio.on('join_channel')
@@ -121,6 +134,14 @@ async def handle_update(sid, data):
 async def disconnect(sid):
     """사용자 연결 해제"""
     info = user_info.pop(sid, None)
+    # 온라인 상태 해제
+    if info and info.get('presence_uid'):
+        uid = info['presence_uid']
+        if uid in online_users:
+            online_users[uid].discard(sid)
+            if not online_users[uid]:
+                del online_users[uid]
+        await sio.emit('presence', {'online': list(online_users.keys())})
     if info:
         board_id = info.get('boardId')
         if board_id in board_users:

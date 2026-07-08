@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -73,6 +73,8 @@ export default function Chat() {
   const [aiTyping, setAiTyping] = useState(false)
   const [dmSearch, setDmSearch] = useState('')
   const [sideTab, setSideTab] = useState('talks')  // 'talks' 대화 | 'people' 사람
+  const [onlineIds, setOnlineIds] = useState([])
+  const [forwardMsg, setForwardMsg] = useState(null)  // 전달할 메시지
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
@@ -121,6 +123,10 @@ export default function Chat() {
     socket.on('chat_read', () => {
       qc.invalidateQueries({ queryKey: ['chat-readers'] })
     })
+    // 온라인 상태
+    socket.on('connect', () => socket.emit('presence_join', { userId: user.id }))
+    socket.emit('presence_join', { userId: user.id })
+    socket.on('presence', (d) => setOnlineIds(d.online || []))
     socket.on('chat_update', (upd) => {
       if (upd.channel === channelRef.current) {
         setMessages(prev => prev.map(m => m.id === upd.id ? { ...m, reactions: upd.reactions } : m))
@@ -266,9 +272,14 @@ export default function Chat() {
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
                     isActive ? 'bg-blue-50 dark:bg-blue-950' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
                   }`}>
-                  <span className="flex-shrink-0">
+                  <span className="flex-shrink-0 relative">
                     {c.kind === 'dm' || c.kind === 'ai'
-                      ? <Avatar emoji={c.avatar?.emoji} color={c.avatar?.color} size={isPopup ? 26 : 34} />
+                      ? <>
+                          <Avatar emoji={c.avatar?.emoji} color={c.avatar?.color} size={isPopup ? 26 : 34} />
+                          {c.kind === 'dm' && onlineIds.includes(c.avatar?.user_id) && (
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
+                          )}
+                        </>
                       : c.kind === 'project'
                         ? <span className="w-[34px] h-[34px] rounded-full flex items-center justify-center" style={{ background: (c.avatar?.color || '#64748b') + '22' }}><span className="w-2.5 h-2.5 rounded-full" style={{ background: c.avatar?.color || '#64748b' }} /></span>
                         : <span className="w-[34px] h-[34px] rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">{c.kind === 'group' ? <UsersRound size={16} className="text-slate-500" /> : <Hash size={16} className="text-slate-500" />}</span>}
@@ -344,7 +355,14 @@ export default function Chat() {
               const ch = dmChannel(user.id, u.id)
               return (
                 <ChannelItem key={u.id} active={channel === ch} onClick={() => pick(ch, u.name)}
-                  icon={<Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={20} />}
+                  icon={
+                    <span className="relative inline-flex">
+                      <Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={20} />
+                      {onlineIds.includes(u.id) && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-slate-900" />
+                      )}
+                    </span>
+                  }
                   label={u.name} sub={u.dept_name} badge={unread?.channels?.[ch]} />
               )
             })
@@ -393,7 +411,7 @@ export default function Chat() {
 
                   <div className="flex items-end gap-1.5">
                     {/* 호버 액션 (내 메시지면 왼쪽) */}
-                    {mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} />}
+                    {mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} />}
 
                     <div className="flex flex-col">
                       {/* 첨부 / 스티커 */}
@@ -425,7 +443,7 @@ export default function Chat() {
                       ))}
                     </div>
 
-                    {!mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} />}
+                    {!mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} />}
                   </div>
 
                   {/* 반응 팔레트 */}
@@ -616,6 +634,78 @@ export default function Chat() {
             pick(`group:${g.id}`, g.name)
           }} />
       )}
+
+      {forwardMsg && (
+        <ForwardModal msg={forwardMsg} convos={convos} users={channels?.users || []} myId={user.id}
+          onClose={() => setForwardMsg(null)}
+          onSent={(label) => { setForwardMsg(null); qc.invalidateQueries({ queryKey: ['chat-convos'] }) }} />
+      )}
+    </div>
+  )
+}
+
+function ForwardModal({ msg, convos, users, myId, onClose, onSent }) {
+  const [q, setQ] = useState('')
+  const [sending, setSending] = useState(false)
+
+  // 대상: 기존 대화방 + 전체 사용자(DM) — 채널 기준 중복 제거
+  const targets = []
+  const seen = new Set()
+  for (const c of convos) {
+    if (!seen.has(c.channel) && !c.channel.startsWith('ai:')) {
+      seen.add(c.channel)
+      targets.push({ channel: c.channel, label: c.label, sub: c.kind === 'dm' ? c.avatar?.dept : null })
+    }
+  }
+  for (const u of users) {
+    const ch = dmChannel(myId, u.id)
+    if (!seen.has(ch)) {
+      seen.add(ch)
+      targets.push({ channel: ch, label: u.name, sub: u.dept_name })
+    }
+  }
+  const ql = q.trim().toLowerCase()
+  const filtered = targets.filter(t => !ql || t.label.toLowerCase().includes(ql) || (t.sub || '').toLowerCase().includes(ql))
+
+  const forward = async (t) => {
+    if (sending) return
+    setSending(true)
+    try {
+      await api.post('/chat/messages', { channel: t.channel, content: msg.content || '', attachment: msg.attachment || null })
+      onSent(t.label)
+    } catch {
+      alert('전달 실패')
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm max-h-[70vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">메시지 전달</span>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+        </div>
+        <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="text-xs text-slate-400 truncate mb-2 px-1">
+            {msg.attachment ? '📎 ' : ''}{(msg.content || msg.attachment?.name || '').slice(0, 50)}
+          </div>
+          <input value={q} onChange={e => setQ(e.target.value)} autoFocus placeholder="대화방·이름·부서 검색"
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div className="flex-1 overflow-y-auto py-1">
+          {filtered.length === 0 ? (
+            <div className="text-center text-xs text-slate-400 py-8">대상이 없습니다</div>
+          ) : filtered.slice(0, 30).map(t => (
+            <button key={t.channel} onClick={() => forward(t)} disabled={sending}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 disabled:opacity-50 transition-colors">
+              <Share2 size={14} className="text-slate-400 flex-shrink-0" />
+              <span className="text-sm text-slate-800 dark:text-slate-100 truncate">{t.label}</span>
+              {t.sub && <span className="text-xs text-slate-400 truncate">{t.sub}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -664,11 +754,12 @@ function GroupModal({ users, onClose, onCreated }) {
   )
 }
 
-function MsgActions({ onReply, onReact }) {
+function MsgActions({ onReply, onReact, onForward }) {
   return (
     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center">
       <button onClick={onReact} title="반응" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Smile size={14} /></button>
       <button onClick={onReply} title="답글" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><CornerUpLeft size={14} /></button>
+      <button onClick={onForward} title="전달" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Share2 size={14} /></button>
     </div>
   )
 }

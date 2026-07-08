@@ -544,7 +544,7 @@ async def conversations(db: AsyncSession = Depends(get_db), current_user: User =
                 continue
             label, kind = other.name, "dm"
             avatar = {"emoji": other.avatar_emoji, "color": other.avatar_color,
-                      "dept": getattr(other, "dept_name", None)}
+                      "dept": getattr(other, "dept_name", None), "user_id": other.id}
 
         sender = users_map.get(last_msg.sender_id)
         preview = "📎 파일" if last_msg.attachment else (last_msg.content or "")[:60]
