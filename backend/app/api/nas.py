@@ -39,6 +39,17 @@ def _can_write(user: User, rel: str) -> bool:
     return bool(dept) and _top_dept(rel) == dept
 
 
+def _can_read(user: User, rel: str) -> bool:
+    """읽기: 관리자는 전체, 일반 사용자는 자기 부서 폴더만"""
+    if user.role == "admin":
+        return True
+    top = _top_dept(rel)
+    if top is None:
+        return True  # 루트 목록은 허용 (자기 부서만 필터되어 보임)
+    dept = getattr(user, "dept_name", None)
+    return bool(dept) and top == dept
+
+
 @router.get("/status")
 async def status(_=Depends(get_current_user)):
     ok = os.path.isdir(NAS_ROOT) and bool(os.listdir(NAS_ROOT)) if os.path.isdir(NAS_ROOT) else False
@@ -47,9 +58,13 @@ async def status(_=Depends(get_current_user)):
 
 @router.get("/list")
 async def list_dir(path: str = Query(""), current_user: User = Depends(get_current_user)):
+    rel_in = (path or "").strip().lstrip("/")
+    if not _can_read(current_user, rel_in):
+        raise HTTPException(status_code=403, detail="본인 부서 폴더만 볼 수 있습니다")
     full = _safe_path(path)
     if not os.path.isdir(full):
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다")
+    my_dept = getattr(current_user, "dept_name", None)
     dirs, files = [], []
     try:
         for name in sorted(os.listdir(full)):
@@ -57,6 +72,9 @@ async def list_dir(path: str = Query(""), current_user: User = Depends(get_curre
                 continue
             fp = os.path.join(full, name)
             if os.path.isdir(fp):
+                # 루트에서는 관리자 외엔 자기 부서 폴더만 노출
+                if not rel_in and current_user.role != "admin" and name != my_dept:
+                    continue
                 dirs.append({"name": name, "type": "dir"})
             else:
                 try:
@@ -77,6 +95,8 @@ async def list_dir(path: str = Query(""), current_user: User = Depends(get_curre
 async def attach_to_chat(body: dict, current_user: User = Depends(get_current_user)):
     """NAS 파일을 채팅 첨부용으로 복사하고 attachment 메타 반환"""
     rel = body.get("path") or ""
+    if not _can_read(current_user, rel.strip().lstrip("/")):
+        raise HTTPException(status_code=403, detail="본인 부서 파일만 첨부할 수 있습니다")
     full = _safe_path(rel)
     if not os.path.isfile(full):
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
