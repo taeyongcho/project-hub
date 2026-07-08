@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2, HardDrive, Folder, ChevronRight, Upload } from 'lucide-react'
+import { toast } from 'sonner'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2, HardDrive, Folder, ChevronRight, Upload, CheckSquare, CalendarDays, Flag } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -76,6 +77,8 @@ export default function Chat() {
   const [onlineIds, setOnlineIds] = useState([])
   const [forwardMsg, setForwardMsg] = useState(null)  // 전달할 메시지
   const [showNas, setShowNas] = useState(false)       // NAS 자료실 모달
+  const [taskFromMsg, setTaskFromMsg] = useState(null) // 메시지→할일 모달
+  const [mainTab, setMainTab] = useState('chat')       // 'chat' | 'tasks' | 'calendar'
 
   const { data: channels } = useQuery({
     queryKey: ['chat-channels'],
@@ -239,7 +242,25 @@ export default function Chat() {
   const isPopup = typeof window !== 'undefined' && (window.opener != null || window.location.pathname === '/chat-popup')
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* 워크스페이스 탭 (채팅/할일/캘린더) */}
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-shrink-0">
+        {[['chat', '💬 채팅'], ['tasks', '✅ 할일'], ['calendar', '📅 캘린더']].map(([v, l]) => (
+          <button key={v} onClick={() => setMainTab(v)}
+            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+              mainTab === v
+                ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {mainTab === 'tasks' && <ChatTasks myId={user.id} />}
+      {mainTab === 'calendar' && <ChatCalendar myId={user.id} />}
+
+      <div className={`flex flex-1 overflow-hidden ${mainTab === 'chat' ? '' : 'hidden'}`}>
       {/* 채널 목록 */}
       <div className={`${isPopup ? 'w-40' : 'w-60'} border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col flex-shrink-0`}>
         <div className="px-4 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -412,7 +433,7 @@ export default function Chat() {
 
                   <div className="flex items-end gap-1.5">
                     {/* 호버 액션 (내 메시지면 왼쪽) */}
-                    {mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} />}
+                    {mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} onTask={() => setTaskFromMsg(m)} />}
 
                     <div className="flex flex-col">
                       {/* 첨부 / 스티커 */}
@@ -444,7 +465,7 @@ export default function Chat() {
                       ))}
                     </div>
 
-                    {!mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} />}
+                    {!mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} onTask={() => setTaskFromMsg(m)} />}
                   </div>
 
                   {/* 반응 팔레트 */}
@@ -629,6 +650,7 @@ export default function Chat() {
           </div>
         </div>
       </div>
+      </div>
 
       {showGroupModal && (
         <GroupModal users={channels?.users || []}
@@ -650,6 +672,219 @@ export default function Chat() {
         <NasModal onClose={() => setShowNas(false)}
           onAttach={async (meta) => { await sendMsg({ attachment: meta }); setShowNas(false) }} />
       )}
+
+      {taskFromMsg && (
+        <TaskFromMsgModal msg={taskFromMsg} users={channels?.users || []} me={user}
+          onClose={() => setTaskFromMsg(null)} />
+      )}
+    </div>
+  )
+}
+
+function TaskFromMsgModal({ msg, users, me, onClose }) {
+  const qc = useQueryClient()
+  const [title, setTitle] = useState((msg.content || msg.attachment?.name || '').slice(0, 100))
+  const [dueDate, setDueDate] = useState('')
+  const [assignee, setAssignee] = useState(String(me.id))
+  const [saving, setSaving] = useState(false)
+
+  const create = async () => {
+    if (!title.trim()) return toast.error('제목을 입력하세요')
+    setSaving(true)
+    try {
+      await api.post('/tasks', {
+        title: title.trim(),
+        description: `💬 채팅에서 등록 (${msg.sender_name}): ${(msg.content || '').slice(0, 500)}`,
+        due_date: dueDate || null,
+        assigned_to_id: parseInt(assignee),
+        priority: 'normal',
+      })
+      qc.invalidateQueries({ queryKey: ['popup-tasks'] })
+      toast.success('할일이 등록되었습니다')
+      onClose()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || '등록 실패')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+            <CheckSquare size={16} className="text-emerald-500" /> 할일로 등록
+          </span>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">제목</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} autoFocus
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">마감일</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">담당자</label>
+              <select value={assignee} onChange={e => setAssignee(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value={me.id}>나 ({me.name})</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}{u.dept_name ? ` · ${u.dept_name}` : ''}</option>)}
+              </select>
+            </div>
+          </div>
+          <button onClick={create} disabled={saving}
+            className="w-full py-2.5 text-sm bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-medium transition-colors">
+            {saving ? '등록 중...' : '할일 등록'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChatTasks({ myId }) {
+  const qc = useQueryClient()
+  const [title, setTitle] = useState('')
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ['popup-tasks', myId],
+    queryFn: () => api.get(`/tasks?assigned_to_id=${myId}`).then(r => r.data),
+  })
+  const statusMut = useMutation({
+    mutationFn: ({ id, status }) => api.patch(`/tasks/${id}`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['popup-tasks'] }),
+    onError: () => toast.error('업데이트 실패'),
+  })
+  const addMut = useMutation({
+    mutationFn: () => api.post('/tasks', { title: title.trim(), assigned_to_id: myId, priority: 'normal' }),
+    onSuccess: () => { setTitle(''); qc.invalidateQueries({ queryKey: ['popup-tasks'] }) },
+    onError: () => toast.error('등록 실패'),
+  })
+
+  const today = dayjs().startOf('day')
+  const open = tasks.filter(t => t.status !== 'done')
+    .sort((a, b) => (a.due_date || '9999') < (b.due_date || '9999') ? -1 : 1)
+  const doneRecent = tasks.filter(t => t.status === 'done').slice(-8).reverse()
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4">
+      <div className="max-w-lg mx-auto">
+        <div className="flex gap-2 mb-4">
+          <input value={title} onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && title.trim()) addMut.mutate() }}
+            placeholder="+ 새 할일 입력 후 Enter"
+            className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        {isLoading ? (
+          <div className="text-center text-xs text-slate-400 py-8">불러오는 중...</div>
+        ) : open.length === 0 ? (
+          <div className="text-center text-sm text-slate-400 py-10">🎉 미완료 할일이 없습니다</div>
+        ) : (
+          <div className="space-y-1.5">
+            {open.map(t => {
+              const overdue = t.due_date && dayjs(t.due_date).isBefore(today)
+              const dueToday = t.due_date && dayjs(t.due_date).isSame(today, 'day')
+              return (
+                <label key={t.id} className="flex items-center gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                  <input type="checkbox" checked={false}
+                    onChange={() => statusMut.mutate({ id: t.id, status: 'done' })}
+                    className="w-4 h-4 rounded accent-emerald-600 cursor-pointer flex-shrink-0" />
+                  <span className="text-sm text-slate-800 dark:text-slate-100 flex-1 truncate">{t.title}</span>
+                  {t.due_date && (
+                    <span className={`text-[11px] flex-shrink-0 font-medium ${
+                      overdue ? 'text-red-500' : dueToday ? 'text-amber-500' : 'text-slate-400'}`}>
+                      {overdue ? `${today.diff(dayjs(t.due_date), 'day')}일 초과` : dueToday ? '오늘' : dayjs(t.due_date).format('MM/DD')}
+                    </span>
+                  )}
+                </label>
+              )
+            })}
+          </div>
+        )}
+
+        {doneRecent.length > 0 && (
+          <>
+            <div className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mt-6 mb-2">최근 완료</div>
+            <div className="space-y-1">
+              {doneRecent.map(t => (
+                <label key={t.id} className="flex items-center gap-2.5 px-3.5 py-1.5 opacity-50 cursor-pointer">
+                  <input type="checkbox" checked
+                    onChange={() => statusMut.mutate({ id: t.id, status: 'todo' })}
+                    className="w-4 h-4 rounded accent-emerald-600 cursor-pointer flex-shrink-0" />
+                  <span className="text-sm text-slate-500 line-through truncate">{t.title}</span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ChatCalendar({ myId }) {
+  const start = dayjs().startOf('day')
+  const end = start.add(13, 'day')
+  const { data } = useQuery({
+    queryKey: ['popup-cal', myId],
+    queryFn: () => api.get('/dashboard/calendar', {
+      params: { start: start.format('YYYY-MM-DD'), end: end.format('YYYY-MM-DD') }
+    }).then(r => r.data),
+  })
+
+  const byDate = {}
+  for (const t of data?.tasks || []) {
+    if (t.assigned_to_id === myId && t.due_date && t.status !== 'done') {
+      (byDate[t.due_date] = byDate[t.due_date] || []).push({ kind: 'task', ...t })
+    }
+  }
+  for (const m of data?.milestones || []) {
+    (byDate[m.due_date] = byDate[m.due_date] || []).push({ kind: 'ms', ...m })
+  }
+
+  const days = Array.from({ length: 14 }, (_, i) => start.add(i, 'day'))
+  const DOW = ['일', '월', '화', '수', '목', '금', '토']
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4">
+      <div className="max-w-lg mx-auto space-y-1.5">
+        <div className="text-xs text-slate-400 mb-2">앞으로 2주 — 내 마감 + 마일스톤</div>
+        {days.map(d => {
+          const key = d.format('YYYY-MM-DD')
+          const items = byDate[key] || []
+          const isToday = d.isSame(dayjs(), 'day')
+          if (items.length === 0 && !isToday) return null
+          return (
+            <div key={key} className={`bg-white dark:bg-slate-900 border rounded-xl px-3.5 py-2.5 ${
+              isToday ? 'border-blue-300 dark:border-blue-700' : 'border-slate-200 dark:border-slate-700'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`text-xs font-bold ${isToday ? 'text-blue-600 dark:text-blue-400' : d.day() === 0 ? 'text-red-500' : d.day() === 6 ? 'text-blue-500' : 'text-slate-600 dark:text-slate-300'}`}>
+                  {d.format('MM/DD')} ({DOW[d.day()]})
+                </span>
+                {isToday && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium">오늘</span>}
+              </div>
+              {items.length === 0 ? (
+                <div className="text-xs text-slate-300 dark:text-slate-600">일정 없음</div>
+              ) : items.map((it, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-200 py-0.5">
+                  {it.kind === 'ms'
+                    ? <Flag size={12} style={{ color: it.project_color || '#8b5cf6' }} className="flex-shrink-0" />
+                    : <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        it.priority === 'urgent' ? 'bg-red-500' : it.priority === 'high' ? 'bg-amber-500' : 'bg-blue-500'}`} />}
+                  <span className="truncate">{it.title}</span>
+                  {it.kind === 'ms' && it.project_name && <span className="text-[10px] text-slate-400 flex-shrink-0">{it.project_name}</span>}
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -879,12 +1114,13 @@ function GroupModal({ users, onClose, onCreated }) {
   )
 }
 
-function MsgActions({ onReply, onReact, onForward }) {
+function MsgActions({ onReply, onReact, onForward, onTask }) {
   return (
     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center">
       <button onClick={onReact} title="반응" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Smile size={14} /></button>
       <button onClick={onReply} title="답글" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><CornerUpLeft size={14} /></button>
       <button onClick={onForward} title="전달" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Share2 size={14} /></button>
+      <button onClick={onTask} title="할일로 등록" className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><CheckSquare size={14} /></button>
     </div>
   )
 }
