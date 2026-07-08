@@ -228,6 +228,20 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
                       content=body.content.strip(), attachment=body.attachment,
                       reply_to=body.reply_to, reactions={})
     db.add(msg)
+
+    # @멘션 알림 — 채널 접근 가능한 사용자 중 이름이 일치하면 알림 생성
+    content = body.content or ""
+    if "@" in content and not body.channel.startswith("ai:"):
+        from app.services.notification import create_notification
+        mentioned = set(re.findall(r"@([\w가-힣]+)", content))
+        if mentioned:
+            urows = await db.execute(select(User).where(User.is_active == True, User.name.in_(mentioned)))
+            for u in urows.scalars().all():
+                if await _can_access_channel(body.channel, u, db):
+                    await create_notification(
+                        db, u.id, "chat_mention", f"💬 {current_user.name}",
+                        content[:80], actor_id=current_user.id)
+
     await db.commit()
     await db.refresh(msg)
     payload = await _serialize(msg, {current_user.id: {"name": current_user.name, "avatar_emoji": current_user.avatar_emoji, "avatar_color": current_user.avatar_color}})
@@ -414,14 +428,33 @@ async def mark_read(body: dict, db: AsyncSession = Depends(get_db),
     channel = body.get("channel")
     if not channel:
         raise HTTPException(status_code=400, detail="channel 필요")
+    now = datetime.utcnow()
     r = (await db.execute(select(ChatRead).where(
         ChatRead.user_id == current_user.id, ChatRead.channel == channel))).scalar_one_or_none()
     if r:
-        r.last_read_at = datetime.utcnow()
+        r.last_read_at = now
     else:
-        db.add(ChatRead(user_id=current_user.id, channel=channel, last_read_at=datetime.utcnow()))
+        db.add(ChatRead(user_id=current_user.id, channel=channel, last_read_at=now))
     await db.commit()
+    # 같은 방 사용자들에게 읽음 갱신 알림 (읽음 표시용)
+    await sio.emit("chat_read", {"channel": channel, "user_id": current_user.id,
+                                 "last_read_at": now.isoformat()}, room=f"chat_{channel}")
     return {"ok": True}
+
+
+@router.get("/read-status")
+async def read_status(channel: str, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """채널의 사용자별 마지막 읽은 시각 (읽음 멤버 표시용)"""
+    if not await _can_access_channel(channel, current_user, db):
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다")
+    rows = (await db.execute(
+        select(ChatRead, User.name).join(User, ChatRead.user_id == User.id)
+        .where(ChatRead.channel == channel)
+    )).all()
+    return [{"user_id": r.user_id, "name": name,
+             "last_read_at": r.last_read_at.isoformat() if r.last_read_at else None}
+            for r, name in rows]
 
 
 @router.get("/unread")

@@ -42,12 +42,16 @@ const fmtSize = (b) => b > 1048576 ? `${(b / 1048576).toFixed(1)}MB` : `${Math.m
 
 // URL을 클릭 가능한 링크로 변환
 function linkify(text) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g)
-  return parts.map((p, i) =>
-    /^https?:\/\//.test(p)
-      ? <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="underline break-all">{p}</a>
-      : p
-  )
+  const parts = text.split(/(https?:\/\/[^\s]+|@[\w가-힣]+)/g)
+  return parts.map((p, i) => {
+    if (/^https?:\/\//.test(p)) {
+      return <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="underline break-all">{p}</a>
+    }
+    if (/^@[\w가-힣]+$/.test(p)) {
+      return <span key={i} className="font-semibold bg-black/10 dark:bg-white/15 rounded px-1">{p}</span>
+    }
+    return p
+  })
 }
 
 export default function Chat() {
@@ -97,6 +101,11 @@ export default function Chat() {
     refetchInterval: 15000,
   })
 
+  const { data: readers = [] } = useQuery({
+    queryKey: ['chat-readers', channel],
+    queryFn: () => api.get('/chat/read-status', { params: { channel } }).then(r => r.data),
+  })
+
   // 소켓 1회 연결
   useEffect(() => {
     if (!user?.id) return
@@ -108,6 +117,9 @@ export default function Chat() {
       }
       qc.invalidateQueries({ queryKey: ['chat-unread'] })
       qc.invalidateQueries({ queryKey: ['chat-convos'] })
+    })
+    socket.on('chat_read', () => {
+      qc.invalidateQueries({ queryKey: ['chat-readers'] })
     })
     socket.on('chat_update', (upd) => {
       if (upd.channel === channelRef.current) {
@@ -439,7 +451,14 @@ export default function Chat() {
                     </div>
                   )}
 
-                  <span className="text-[10px] text-slate-400 mt-0.5 mx-1">{dayjs(m.created_at).format('HH:mm')}</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 mx-1">
+                    {mine && !channel.startsWith('ai:') && (() => {
+                      const cnt = readers.filter(r => r.user_id !== user.id && r.last_read_at && !dayjs(r.last_read_at).isBefore(dayjs(m.created_at))).length
+                      if (!cnt) return null
+                      return <span className="text-blue-500 font-medium mr-1">{channel.startsWith('dm:') ? '읽음' : `읽음 ${cnt}`}</span>
+                    })()}
+                    {dayjs(m.created_at).format('HH:mm')}
+                  </span>
                 </div>
               </div>
             )
@@ -535,6 +554,31 @@ export default function Chat() {
               <button onClick={() => setReplyTo(null)} className="text-slate-400 hover:text-slate-700"><X size={14} /></button>
             </div>
           )}
+
+          {/* @멘션 자동완성 */}
+          {(() => {
+            if (channel.startsWith('ai:')) return null
+            const mm = text.match(/@([\w가-힣]*)$/)
+            if (!mm) return null
+            const q = mm[1].toLowerCase()
+            const cands = (channels?.users || [])
+              .filter(u => !q || u.name.toLowerCase().includes(q) || (u.dept_name || '').toLowerCase().includes(q))
+              .slice(0, 6)
+            if (cands.length === 0) return null
+            return (
+              <div className="absolute bottom-full left-6 right-6 mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50">
+                {cands.map(u => (
+                  <button key={u.id}
+                    onClick={() => setText(t => t.replace(/@[\w가-힣]*$/, `@${u.name} `))}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={22} />
+                    <span className="text-sm text-slate-800 dark:text-slate-100">{u.name}</span>
+                    {u.dept_name && <span className="text-xs text-slate-400">{u.dept_name}</span>}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
 
           <div className="flex items-center gap-2">
             <button onClick={() => setPicker(p => p === 'emoji' ? null : 'emoji')}

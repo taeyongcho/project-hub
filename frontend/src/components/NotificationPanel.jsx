@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 const META = {
   task_assigned:   { icon: '📌', color: 'text-blue-500',   border: 'border-l-blue-400' },
   task_comment:    { icon: '💬', color: 'text-violet-500', border: 'border-l-violet-400' },
+  chat_mention:    { icon: '🔖', color: 'text-emerald-500', border: 'border-l-emerald-400' },
   overdue:         { icon: '⚠',  color: 'text-red-500',    border: 'border-l-red-400' },
   due_today:       { icon: '⏰', color: 'text-amber-500',  border: 'border-l-amber-400' },
   worklog_reminder:{ icon: '📝', color: 'text-blue-500',   border: 'border-l-blue-400' },
@@ -37,6 +38,10 @@ export default function NotificationPanel({ onClose, onSelectTask }) {
     if (item.notif_id && !item.is_read) readMut.mutate(item.notif_id)
     if (item.type === 'worklog_reminder') { navigate('/worklog'); onClose() }
     else if (item.type === 'cert_expiry') { navigate('/cert-monitor'); onClose() }
+    else if (item.type === 'chat_mention') {
+      window.open('/chat-popup', 'projecthub_chat', 'width=440,height=680,menubar=no,toolbar=no,location=no,status=no')
+      onClose()
+    }
     else if (item.task_id) { onSelectTask(item.task_id); onClose() }
   }
 
