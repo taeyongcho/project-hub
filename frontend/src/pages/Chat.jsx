@@ -79,6 +79,7 @@ export default function Chat() {
   const [showNas, setShowNas] = useState(false)       // NAS 자료실 모달
   const [taskFromMsg, setTaskFromMsg] = useState(null) // 메시지→할일 모달
   const [editingMsg, setEditingMsg] = useState(null)   // {id, content} 수정 중
+  const [imageEdit, setImageEdit] = useState(null)     // 붙여넣은 이미지 편집 (File)
   const [mainTab, setMainTab] = useState('chat')       // 'chat' | 'tasks' | 'calendar'
 
   const { data: channels } = useQuery({
@@ -249,7 +250,7 @@ export default function Chat() {
     for (const it of items) {
       if (it.type.startsWith('image/')) {
         const f = it.getAsFile()
-        if (f) { e.preventDefault(); uploadAndSend(f) }
+        if (f) { e.preventDefault(); setImageEdit(f) }  // 편집 모달 먼저
       }
     }
   }
@@ -720,6 +721,191 @@ export default function Chat() {
         <TaskFromMsgModal msg={taskFromMsg} users={channels?.users || []} me={user}
           onClose={() => setTaskFromMsg(null)} />
       )}
+
+      {imageEdit && (
+        <ImageEditModal file={imageEdit} onClose={() => setImageEdit(null)}
+          onSend={async (file) => { setImageEdit(null); await uploadAndSend(file) }} />
+      )}
+    </div>
+  )
+}
+
+const PEN_COLORS = ['#ef4444', '#3b82f6', '#facc15', '#111827']
+
+function ImageEditModal({ file, onClose, onSend }) {
+  const canvasRef = useRef(null)
+  const wrapRef = useRef(null)
+  const historyRef = useRef([])
+  const drawingRef = useRef(false)
+  const cropStartRef = useRef(null)
+  const [mode, setMode] = useState('pen')       // 'pen' | 'crop'
+  const [penColor, setPenColor] = useState('#ef4444')
+  const [penSize, setPenSize] = useState(4)
+  const [cropRect, setCropRect] = useState(null) // {x,y,w,h} 캔버스 좌표
+  const [sending, setSending] = useState(false)
+
+  // 이미지 로드
+  useEffect(() => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const maxW = Math.min(760, window.innerWidth - 120)
+      const maxH = window.innerHeight - 260
+      const scale = Math.min(1, maxW / img.width, maxH / img.height)
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      historyRef.current = []
+      URL.revokeObjectURL(url)
+    }
+    img.src = url
+  }, [file])
+
+  const snapshot = () => {
+    const c = canvasRef.current
+    const ctx = c.getContext('2d')
+    historyRef.current.push(ctx.getImageData(0, 0, c.width, c.height))
+    if (historyRef.current.length > 15) historyRef.current.shift()
+  }
+
+  const undo = () => {
+    const prev = historyRef.current.pop()
+    if (!prev) return
+    const c = canvasRef.current
+    // 자르기 되돌리기 대응: 캔버스 크기 복원
+    c.width = prev.width
+    c.height = prev.height
+    c.getContext('2d').putImageData(prev, 0, 0)
+    setCropRect(null)
+  }
+
+  const getPos = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  const onDown = (e) => {
+    const pos = getPos(e)
+    if (mode === 'pen') {
+      snapshot()
+      drawingRef.current = true
+      const ctx = canvasRef.current.getContext('2d')
+      ctx.strokeStyle = penColor
+      ctx.lineWidth = penSize
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      ctx.moveTo(pos.x, pos.y)
+    } else {
+      cropStartRef.current = pos
+      setCropRect({ x: pos.x, y: pos.y, w: 0, h: 0 })
+    }
+  }
+
+  const onMove = (e) => {
+    const pos = getPos(e)
+    if (mode === 'pen' && drawingRef.current) {
+      const ctx = canvasRef.current.getContext('2d')
+      ctx.lineTo(pos.x, pos.y)
+      ctx.stroke()
+    } else if (mode === 'crop' && cropStartRef.current) {
+      const s = cropStartRef.current
+      setCropRect({
+        x: Math.min(s.x, pos.x), y: Math.min(s.y, pos.y),
+        w: Math.abs(pos.x - s.x), h: Math.abs(pos.y - s.y),
+      })
+    }
+  }
+
+  const onUp = () => {
+    drawingRef.current = false
+    cropStartRef.current = null
+  }
+
+  const applyCrop = () => {
+    if (!cropRect || cropRect.w < 10 || cropRect.h < 10) return
+    snapshot()
+    const c = canvasRef.current
+    const ctx = c.getContext('2d')
+    const data = ctx.getImageData(cropRect.x, cropRect.y, cropRect.w, cropRect.h)
+    c.width = cropRect.w
+    c.height = cropRect.h
+    ctx.putImageData(data, 0, 0)
+    setCropRect(null)
+    setMode('pen')
+  }
+
+  const send = () => {
+    if (sending) return
+    setSending(true)
+    canvasRef.current.toBlob((blob) => {
+      onSend(new File([blob], file.name || 'capture.png', { type: 'image/png' }))
+    }, 'image/png')
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[80] p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 max-w-[90vw]" onClick={e => e.stopPropagation()}>
+        {/* 툴바 */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <button onClick={() => { setMode('pen'); setCropRect(null) }}
+            className={`text-xs px-3 py-1.5 rounded-lg font-medium ${mode === 'pen' ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+            ✏️ 펜
+          </button>
+          <button onClick={() => setMode('crop')}
+            className={`text-xs px-3 py-1.5 rounded-lg font-medium ${mode === 'crop' ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+            ✂️ 자르기
+          </button>
+          {mode === 'pen' && (
+            <>
+              {PEN_COLORS.map(c => (
+                <button key={c} onClick={() => setPenColor(c)}
+                  className={`w-6 h-6 rounded-full border-2 ${penColor === c ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'}`}
+                  style={{ background: c }} />
+              ))}
+              <select value={penSize} onChange={e => setPenSize(parseInt(e.target.value))}
+                className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200">
+                <option value={2}>가늘게</option>
+                <option value={4}>보통</option>
+                <option value={8}>굵게</option>
+              </select>
+            </>
+          )}
+          {mode === 'crop' && cropRect?.w >= 10 && (
+            <button onClick={applyCrop}
+              className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium">
+              선택 영역 자르기
+            </button>
+          )}
+          <button onClick={undo}
+            className="text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium ml-auto">
+            ↩ 되돌리기
+          </button>
+        </div>
+
+        {/* 캔버스 */}
+        <div ref={wrapRef} className="relative inline-block select-none rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700"
+          style={{ cursor: mode === 'pen' ? 'crosshair' : 'cell' }}>
+          <canvas ref={canvasRef}
+            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} />
+          {cropRect && (
+            <div className="absolute border-2 border-blue-500 bg-blue-500/15 pointer-events-none"
+              style={{ left: cropRect.x, top: cropRect.y, width: cropRect.w, height: cropRect.h }} />
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-3">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">취소</button>
+          <button onClick={send} disabled={sending}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-medium">
+            {sending ? '전송 중...' : '보내기'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

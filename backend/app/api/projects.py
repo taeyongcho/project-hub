@@ -5,7 +5,7 @@ from datetime import date
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.services.project import (get_all_projects, get_project, create_project,
-                                   update_project, delete_project,
+                                   update_project, delete_project, duplicate_project,
                                    create_milestone, update_milestone, delete_milestone,
                                    get_project_stats, get_project_members,
                                    add_project_member, remove_project_member)
@@ -77,6 +77,18 @@ async def remove_project(project_id: int, db: AsyncSession = Depends(get_db),
         raise HTTPException(status_code=403, detail="프로젝트 소유자 또는 관리자만 삭제할 수 있습니다.")
     await delete_project(db, project_id)
     return {"ok": True}
+
+
+@router.post("/{project_id}/duplicate")
+async def clone_project(project_id: int, body: dict, db: AsyncSession = Depends(get_db),
+                        current_user=Depends(get_current_user)):
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="새 프로젝트 이름을 입력하세요.")
+    result = await duplicate_project(db, project_id, name, current_user.id)
+    if not result:
+        raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다.")
+    return result
 
 
 @router.get("/{project_id}/stats")

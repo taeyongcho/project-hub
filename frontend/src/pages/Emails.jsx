@@ -22,6 +22,7 @@ export default function Emails() {
   const [memo, setMemo] = useState('')
   const [importAccountId, setImportAccountId] = useState('')
   const [showHtml, setShowHtml] = useState(false)
+  const [reply, setReply] = useState(null)  // {to, cc, subject, body} 답장 작성
   const fileRef = useRef()
 
   const { data: emails = [] } = useQuery({
@@ -111,6 +112,31 @@ export default function Emails() {
     onSuccess: () => toast.success('할일이 생성되었습니다.'),
     onError: (e) => toast.error(e.response?.data?.detail || '할일 생성 실패')
   })
+
+  const sendMut = useMutation({
+    mutationFn: data => api.post('/email-accounts/send', data),
+    onSuccess: () => {
+      toast.success('답장을 보냈습니다')
+      if (selected) statusMut.mutate({ id: selected.id, status: 'replied' })
+      setReply(null)
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || '발송 실패 — SMTP 설정을 확인하세요')
+  })
+
+  const openReply = () => {
+    const d = detail || selected
+    if (!d) return
+    if (!d.account_id) return toast.error('수신 계정 정보가 없어 답장할 수 없습니다 (EML 수동등록 메일)')
+    const fromAddr = (d.from_ || '').match(/<([^>]+)>/)?.[1] || d.from_ || ''
+    const quoted = (d.body_text || '').split('\n').slice(0, 30).map(l => '> ' + l).join('\n')
+    setReply({
+      account_id: d.account_id,
+      to: fromAddr,
+      cc: '',
+      subject: (d.subject || '').startsWith('Re:') ? d.subject : `Re: ${d.subject || ''}`,
+      body: `\n\n----- 원본 메시지 -----\n${quoted}`,
+    })
+  }
 
   const handleFileChange = e => {
     const file = e.target.files[0]
@@ -299,12 +325,18 @@ export default function Emails() {
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight flex-1">
               {detail?.subject || selected.subject}
             </h2>
-            <button
-              onClick={() => confirm('이 이메일을 삭제할까요? 파일도 함께 삭제됩니다.') && deleteMut.mutate(selected.id)}
-              className="text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium flex-shrink-0"
-            >
-              삭제
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button onClick={openReply}
+                className="text-xs text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                ↩ 답장
+              </button>
+              <button
+                onClick={() => confirm('이 이메일을 삭제할까요? 파일도 함께 삭제됩니다.') && deleteMut.mutate(selected.id)}
+                className="text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors font-medium"
+              >
+                삭제
+              </button>
+            </div>
           </div>
 
           <div className="text-sm text-slate-500 dark:text-slate-400 space-y-1 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -415,6 +447,37 @@ export default function Emails() {
           <div className="text-center">
             <div className="text-4xl mb-3">✉</div>
             <div>메일을 선택하세요</div>
+          </div>
+        </div>
+      )}
+
+      {/* 답장 작성 모달 */}
+      {reply && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={() => setReply(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-5 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">↩ 답장</span>
+              <button onClick={() => setReply(null)} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            <div className="space-y-2 flex-1 overflow-y-auto">
+              <input value={reply.to} onChange={e => setReply(p => ({ ...p, to: e.target.value }))}
+                placeholder="받는사람" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input value={reply.cc} onChange={e => setReply(p => ({ ...p, cc: e.target.value }))}
+                placeholder="참조 (선택)" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input value={reply.subject} onChange={e => setReply(p => ({ ...p, subject: e.target.value }))}
+                placeholder="제목" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <textarea value={reply.body} onChange={e => setReply(p => ({ ...p, body: e.target.value }))}
+                rows={12} autoFocus placeholder="내용을 입력하세요..."
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            </div>
+            <div className="flex justify-end gap-2 mt-3">
+              <button onClick={() => setReply(null)}
+                className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">취소</button>
+              <button onClick={() => reply.to.trim() && sendMut.mutate(reply)} disabled={sendMut.isPending}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-medium">
+                {sendMut.isPending ? '발송 중...' : '보내기'}
+              </button>
+            </div>
           </div>
         </div>
       )}

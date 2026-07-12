@@ -60,6 +60,51 @@ async def delete_project(db: AsyncSession, project_id: int):
         await db.commit()
 
 
+async def duplicate_project(db: AsyncSession, project_id: int, new_name: str, owner_id: int):
+    """프로젝트를 템플릿처럼 복제: 마일스톤 + 태스크 구조 (상태/날짜/담당자 초기화)"""
+    src = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one_or_none()
+    if not src:
+        return None
+    p = Project(name=new_name, description=src.description, color=src.color,
+                status="active", owner_id=owner_id)
+    db.add(p)
+    await db.flush()
+    db.add(ProjectMember(project_id=p.id, user_id=owner_id, role="owner"))
+
+    # 마일스톤 복제
+    ms_rows = (await db.execute(
+        select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.order)
+    )).scalars().all()
+    ms_map = {}
+    for m in ms_rows:
+        nm = Milestone(project_id=p.id, title=m.title, order=m.order, is_done=False)
+        db.add(nm)
+        await db.flush()
+        ms_map[m.id] = nm.id
+
+    # 태스크 복제 (1차: parent 없이 생성 → 2차: parent 연결)
+    t_rows = (await db.execute(
+        select(Task).where(Task.project_id == project_id).order_by(Task.wbs_order, Task.id)
+    )).scalars().all()
+    t_map = {}
+    for t in t_rows:
+        nt = Task(title=t.title, description=t.description, priority=t.priority,
+                  status="todo", project_id=p.id,
+                  milestone_id=ms_map.get(t.milestone_id),
+                  wbs_order=t.wbs_order, created_by_id=owner_id)
+        db.add(nt)
+        await db.flush()
+        t_map[t.id] = nt.id
+    for t in t_rows:
+        if t.parent_id and t.parent_id in t_map:
+            child = await db.get(Task, t_map[t.id])
+            child.parent_id = t_map[t.parent_id]
+
+    await db.commit()
+    await db.refresh(p)
+    return {**_p(p), "copied_milestones": len(ms_rows), "copied_tasks": len(t_rows)}
+
+
 async def get_project_stats(db: AsyncSession, project_id: int) -> dict:
     total = await db.scalar(select(func.count(Task.id)).where(Task.project_id == project_id))
     done = await db.scalar(select(func.count(Task.id)).where(Task.project_id == project_id, Task.status == "done"))

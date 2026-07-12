@@ -43,6 +43,15 @@ export default function Projects() {
     onError: (err) => toast.error(err.response?.data?.detail || '프로젝트 생성 실패')
   })
 
+  const dupMut = useMutation({
+    mutationFn: ({ id, name }) => api.post(`/projects/${id}/duplicate`, { name }).then(r => r.data),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      toast.success(`복제 완료 — 마일스톤 ${d.copied_milestones}개, 태스크 ${d.copied_tasks}개`)
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || '복제 실패'),
+  })
+
   const archiveMut = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/projects/${id}`, { status }),
     onSuccess: () => {
@@ -246,7 +255,11 @@ export default function Projects() {
               <ProjectCard key={p.id} project={p}
                 onClick={() => navigate(`/projects/${p.id}`)}
                 onEdit={e => openEdit(e, p)}
-                onArchive={() => archiveMut.mutate({ id: p.id, status: 'done' })} />
+                onArchive={() => archiveMut.mutate({ id: p.id, status: 'done' })}
+                onDuplicate={() => {
+                  const name = window.prompt(`'${p.name}'을(를) 복제합니다.\n마일스톤·태스크 구조가 복사됩니다 (상태·날짜·담당자는 초기화).\n\n새 프로젝트 이름:`, `${p.name} (복사)`)
+                  if (name?.trim()) dupMut.mutate({ id: p.id, name: name.trim() })
+                }} />
             ))}
             {active.length === 0 && (
               <div className="col-span-3 text-center py-16 text-slate-400">
@@ -284,7 +297,7 @@ export default function Projects() {
   )
 }
 
-const ProjectCard = memo(function ProjectCard({ project: p, onClick, onEdit, onArchive, onReopen }) {
+const ProjectCard = memo(function ProjectCard({ project: p, onClick, onEdit, onArchive, onReopen, onDuplicate }) {
   const { data: members = [] } = useQuery({
     queryKey: ['project-members', p.id],
     queryFn: () => api.get(`/projects/${p.id}/members`).then(r => r.data),
@@ -304,6 +317,13 @@ const ProjectCard = memo(function ProjectCard({ project: p, onClick, onEdit, onA
             className="text-xs text-slate-400 hover:text-blue-600 transition-colors font-medium px-1.5 py-0.5 rounded hover:bg-blue-50">
             수정
           </button>
+          {onDuplicate && (
+            <button onClick={e => { e.stopPropagation(); onDuplicate() }}
+              title="이 프로젝트를 템플릿으로 복제 (마일스톤·태스크 구조 복사)"
+              className="text-xs text-slate-400 hover:text-violet-600 transition-colors font-medium px-1.5 py-0.5 rounded hover:bg-violet-50 dark:hover:bg-violet-950">
+              복제
+            </button>
+          )}
           <button onClick={e => { e.stopPropagation(); (onArchive || onReopen)?.() }}
             className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-medium px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
             {onArchive ? '완료' : '재개'}
