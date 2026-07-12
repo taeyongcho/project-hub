@@ -26,6 +26,7 @@ export default function Tasks() {
   const [form, setForm] = useState({ title: '', priority: 'normal', due_date: '', project_id: '', assignee_ids: [] })
   const [assigneeSearch, setAssigneeSearch] = useState('')
   const [creating, setCreating] = useState(false)
+  const [showRecurring, setShowRecurring] = useState(false)
 
   const params = filter === 'mine' ? `?assigned_to_id=${user?.id}` :
     filter === 'overdue' ? '' : '?status=in_progress'
@@ -105,11 +106,19 @@ export default function Tasks() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">할 일</h1>
-        <button onClick={() => setShowForm(true)}
-          className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
-          + 새 할일
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowRecurring(true)}
+            className="text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 rounded-xl font-medium transition-colors">
+            🔁 반복 할일
+          </button>
+          <button onClick={() => setShowForm(true)}
+            className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl font-medium transition-colors">
+            + 새 할일
+          </button>
+        </div>
       </div>
+
+      {showRecurring && <RecurringModal users={users} onClose={() => setShowRecurring(false)} />}
 
       <div className="flex gap-2 mb-5">
         {[['mine','내 할일'],['all','전체 (진행중)'],['overdue','기한 초과']].map(([v, l]) => (
@@ -247,6 +256,113 @@ export default function Tasks() {
           {filter === 'overdue' ? '기한 초과된 태스크가 없습니다!' : '태스크가 없습니다'}
         </div>
       )}
+    </div>
+  )
+}
+
+const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일']
+
+function RecurringModal({ users, onClose }) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState({ title: '', freq: 'weekly', weekday: 0, month_day: 1, assigned_to_id: '', priority: 'normal' })
+
+  const { data: rules = [] } = useQuery({
+    queryKey: ['recurring-tasks'],
+    queryFn: () => api.get('/recurring-tasks').then(r => r.data),
+  })
+
+  const addMut = useMutation({
+    mutationFn: () => api.post('/recurring-tasks', {
+      title: form.title.trim(), freq: form.freq, priority: form.priority,
+      weekday: form.freq === 'weekly' ? parseInt(form.weekday) : null,
+      month_day: form.freq === 'monthly' ? parseInt(form.month_day) : null,
+      assigned_to_id: form.assigned_to_id ? parseInt(form.assigned_to_id) : null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recurring-tasks'] })
+      setForm(p => ({ ...p, title: '' }))
+      toast.success('반복 할일이 등록되었습니다')
+    },
+    onError: (e) => toast.error(e.response?.data?.detail || '등록 실패'),
+  })
+
+  const toggleMut = useMutation({
+    mutationFn: id => api.patch(`/recurring-tasks/${id}/toggle`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['recurring-tasks'] }),
+  })
+  const delMut = useMutation({
+    mutationFn: id => api.delete(`/recurring-tasks/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['recurring-tasks'] }); toast.success('삭제되었습니다') },
+  })
+
+  const inputCls = 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">🔁 반복 할일</span>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+
+        <div className="p-5 border-b border-slate-100 dark:border-slate-800 space-y-2.5">
+          <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+            placeholder="할일 제목 (예: 주간보고 제출)" className={`${inputCls} w-full`} />
+          <div className="grid grid-cols-2 gap-2">
+            <select value={form.freq} onChange={e => setForm(p => ({ ...p, freq: e.target.value }))} className={inputCls}>
+              <option value="daily">매일</option>
+              <option value="weekly">매주</option>
+              <option value="monthly">매월</option>
+            </select>
+            {form.freq === 'weekly' && (
+              <select value={form.weekday} onChange={e => setForm(p => ({ ...p, weekday: e.target.value }))} className={inputCls}>
+                {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}요일</option>)}
+              </select>
+            )}
+            {form.freq === 'monthly' && (
+              <select value={form.month_day} onChange={e => setForm(p => ({ ...p, month_day: e.target.value }))} className={inputCls}>
+                {Array.from({ length: 31 }, (_, i) => <option key={i} value={i + 1}>{i + 1}일</option>)}
+              </select>
+            )}
+            {form.freq === 'daily' && <div />}
+            <select value={form.assigned_to_id} onChange={e => setForm(p => ({ ...p, assigned_to_id: e.target.value }))} className={inputCls}>
+              <option value="">담당자 (선택)</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} className={inputCls}>
+              <option value="normal">보통</option>
+              <option value="high">높음</option>
+              <option value="urgent">긴급</option>
+              <option value="low">낮음</option>
+            </select>
+          </div>
+          <button onClick={() => form.title.trim() && addMut.mutate()} disabled={addMut.isPending}
+            className="w-full py-2 text-sm bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl font-medium">
+            {addMut.isPending ? '등록 중...' : '규칙 추가'}
+          </button>
+          <p className="text-[11px] text-slate-400">매일 아침 7시에 조건에 맞는 할일이 자동 생성됩니다 (당일 마감).</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3">
+          {rules.length === 0 ? (
+            <div className="text-center text-xs text-slate-400 py-8">등록된 반복 규칙이 없습니다</div>
+          ) : rules.map(r => (
+            <div key={r.id} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-1 ${r.active ? '' : 'opacity-45'}`}>
+              <button onClick={() => toggleMut.mutate(r.id)} title={r.active ? '일시중지' : '재개'}
+                className={`w-8 h-4.5 rounded-full flex items-center transition-colors flex-shrink-0 ${r.active ? 'bg-emerald-500 justify-end' : 'bg-slate-300 dark:bg-slate-700 justify-start'}`}
+                style={{ height: 18 }}>
+                <span className="w-3.5 h-3.5 bg-white rounded-full mx-0.5 shadow" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-slate-800 dark:text-slate-100 truncate">{r.title}</div>
+                <div className="text-xs text-slate-400">{r.rule_label}{r.assignee_name ? ` · ${r.assignee_name}` : ''}{r.last_created ? ` · 최근 ${r.last_created}` : ''}</div>
+              </div>
+              <button onClick={() => confirm('이 반복 규칙을 삭제할까요?') && delMut.mutate(r.id)}
+                className="text-xs text-slate-400 hover:text-red-500 flex-shrink-0">삭제</button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

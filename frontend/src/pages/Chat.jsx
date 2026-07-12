@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
 import { toast } from 'sonner'
-import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2, HardDrive, Folder, ChevronRight, Upload, CheckSquare, CalendarDays, Flag } from 'lucide-react'
+import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Paperclip, FileText, Download, X, Plus, UsersRound, CornerUpLeft, ExternalLink, Share2, HardDrive, Folder, ChevronRight, Upload, CheckSquare, CalendarDays, Flag, Pencil, Trash2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
@@ -78,6 +78,7 @@ export default function Chat() {
   const [forwardMsg, setForwardMsg] = useState(null)  // 전달할 메시지
   const [showNas, setShowNas] = useState(false)       // NAS 자료실 모달
   const [taskFromMsg, setTaskFromMsg] = useState(null) // 메시지→할일 모달
+  const [editingMsg, setEditingMsg] = useState(null)   // {id, content} 수정 중
   const [mainTab, setMainTab] = useState('chat')       // 'chat' | 'tasks' | 'calendar'
 
   const { data: channels } = useQuery({
@@ -123,6 +124,18 @@ export default function Chat() {
       }
       qc.invalidateQueries({ queryKey: ['chat-unread'] })
       qc.invalidateQueries({ queryKey: ['chat-convos'] })
+      // 데스크톱 알림 (다른 방이거나 창이 백그라운드일 때)
+      if (msg.sender_id !== user.id && !msg.channel.startsWith('ai:') &&
+          (document.hidden || msg.channel !== channelRef.current) &&
+          typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const n = new Notification(msg.sender_name || '새 메시지', {
+            body: msg.attachment ? '📎 파일을 보냈습니다' : (msg.content || '').slice(0, 80),
+            tag: `chat-${msg.channel}`,
+          })
+          n.onclick = () => { window.focus(); n.close() }
+        } catch { /* 알림 미지원 환경 무시 */ }
+      }
     })
     socket.on('chat_read', () => {
       qc.invalidateQueries({ queryKey: ['chat-readers'] })
@@ -131,9 +144,13 @@ export default function Chat() {
     socket.on('connect', () => socket.emit('presence_join', { userId: user.id }))
     socket.emit('presence_join', { userId: user.id })
     socket.on('presence', (d) => setOnlineIds(d.online || []))
+    // 데스크톱 알림 권한 요청 (1회)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
     socket.on('chat_update', (upd) => {
       if (upd.channel === channelRef.current) {
-        setMessages(prev => prev.map(m => m.id === upd.id ? { ...m, reactions: upd.reactions } : m))
+        setMessages(prev => prev.map(m => m.id === upd.id ? { ...m, ...upd } : m))
       }
     })
     // AI 스트리밍
@@ -433,11 +450,36 @@ export default function Chat() {
 
                   <div className="flex items-end gap-1.5">
                     {/* 호버 액션 (내 메시지면 왼쪽) */}
-                    {mine && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} onTask={() => setTaskFromMsg(m)} />}
+                    {mine && !m.is_deleted && <MsgActions onReply={() => setReplyTo({ id: m.id, sender_name: m.sender_name, preview: (m.content || '📎 첨부').slice(0, 30) })} onReact={() => setReactFor(reactFor === m.id ? null : m.id)} onForward={() => setForwardMsg(m)} onTask={() => setTaskFromMsg(m)}
+                      onEdit={m.content ? () => setEditingMsg({ id: m.id, content: m.content }) : undefined}
+                      onDelete={async () => { if (confirm('이 메시지를 삭제할까요?')) { try { await api.delete(`/chat/messages/${m.id}`) } catch { toast.error('삭제 실패') } } }} />}
 
                     <div className="flex flex-col">
+                      {/* 삭제된 메시지 */}
+                      {m.is_deleted && (
+                        <div className="px-3.5 py-2 rounded-2xl text-sm italic text-slate-400 bg-slate-100/60 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700">
+                          삭제된 메시지입니다
+                        </div>
+                      )}
+                      {/* 수정 중 */}
+                      {!m.is_deleted && editingMsg?.id === m.id && (
+                        <div className="flex flex-col gap-1.5 min-w-[220px]">
+                          <textarea value={editingMsg.content} autoFocus rows={2}
+                            onChange={e => setEditingMsg(p => ({ ...p, content: e.target.value }))}
+                            onKeyDown={async e => {
+                              if (e.key === 'Escape') setEditingMsg(null)
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                try { await api.patch(`/chat/messages/${m.id}`, { content: editingMsg.content }); setEditingMsg(null) }
+                                catch (err) { toast.error(err.response?.data?.detail || '수정 실패') }
+                              }
+                            }}
+                            className="bg-white dark:bg-slate-800 border-2 border-blue-400 rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-100 outline-none resize-none" />
+                          <div className="text-[10px] text-slate-400">Enter 저장 · Esc 취소</div>
+                        </div>
+                      )}
                       {/* 첨부 / 스티커 */}
-                      {m.attachment && (isSticker ? (
+                      {!m.is_deleted && editingMsg?.id !== m.id && m.attachment && (isSticker ? (
                         <img src={m.attachment.url} alt="sticker" className="max-w-[120px] max-h-[120px] mb-1 select-none" />
                       ) : m.attachment.type?.startsWith('image/') ? (
                         <a href={m.attachment.url} target="_blank" rel="noopener noreferrer" className="block mb-1">
@@ -456,7 +498,7 @@ export default function Chat() {
                       ))}
 
                       {/* 텍스트 */}
-                      {m.content && (isEmojiOnly(m.content) ? (
+                      {!m.is_deleted && editingMsg?.id !== m.id && m.content && (isEmojiOnly(m.content) ? (
                         <div className="text-3xl leading-none px-1 py-1 select-none">{m.content}</div>
                       ) : (
                         <div className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
@@ -498,6 +540,7 @@ export default function Chat() {
                       return <span className="text-blue-500 font-medium mr-1">{channel.startsWith('dm:') ? '읽음' : `읽음 ${cnt}`}</span>
                     })()}
                     {dayjs(m.created_at).format('HH:mm')}
+                    {m.is_edited && !m.is_deleted && <span className="ml-1 text-slate-300 dark:text-slate-600">(수정됨)</span>}
                   </span>
                 </div>
               </div>
@@ -1147,13 +1190,15 @@ function GroupModal({ users, onClose, onCreated }) {
   )
 }
 
-function MsgActions({ onReply, onReact, onForward, onTask }) {
+function MsgActions({ onReply, onReact, onForward, onTask, onEdit, onDelete }) {
   return (
     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center">
       <button onClick={onReact} title="반응" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Smile size={14} /></button>
       <button onClick={onReply} title="답글" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><CornerUpLeft size={14} /></button>
       <button onClick={onForward} title="전달" className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Share2 size={14} /></button>
       <button onClick={onTask} title="할일로 등록" className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><CheckSquare size={14} /></button>
+      {onEdit && <button onClick={onEdit} title="수정" className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Pencil size={14} /></button>}
+      {onDelete && <button onClick={onDelete} title="삭제" className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"><Trash2 size={14} /></button>}
     </div>
   )
 }

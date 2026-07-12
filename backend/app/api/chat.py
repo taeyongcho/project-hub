@@ -91,10 +91,12 @@ async def _serialize(m: ChatMessage, user_map: dict) -> dict:
         "sender_name": u.get("name", "?"),
         "sender_avatar": u.get("avatar_emoji", "🙂"),
         "sender_color": u.get("avatar_color", "#3b82f6"),
-        "content": m.content,
-        "attachment": m.attachment,
+        "content": "" if m.is_deleted else m.content,
+        "attachment": None if m.is_deleted else m.attachment,
         "reply_to": m.reply_to,
         "reactions": m.reactions or {},
+        "is_edited": bool(m.is_edited),
+        "is_deleted": bool(m.is_deleted),
         "created_at": str(m.created_at),
     }
 
@@ -253,6 +255,52 @@ async def send_message(body: MessageIn, db: AsyncSession = Depends(get_db),
         asyncio.create_task(_ai_reply(body.channel))
 
     return payload
+
+
+async def _broadcast_update(db: AsyncSession, msg: ChatMessage):
+    """수정/삭제된 메시지를 같은 방에 전파"""
+    urow = await db.execute(select(User).where(User.id == msg.sender_id))
+    u = urow.scalar_one_or_none()
+    umap = {msg.sender_id: {"name": u.name, "avatar_emoji": u.avatar_emoji,
+                            "avatar_color": u.avatar_color}} if u else {}
+    payload = await _serialize(msg, umap)
+    await sio.emit("chat_update", payload, room=f"chat_{msg.channel}")
+
+
+@router.patch("/messages/{msg_id}")
+async def edit_message(msg_id: int, body: dict, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    msg = await db.get(ChatMessage, msg_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="메시지를 찾을 수 없습니다")
+    if msg.sender_id != current_user.id:
+        raise HTTPException(status_code=403, detail="본인 메시지만 수정할 수 있습니다")
+    if msg.is_deleted:
+        raise HTTPException(status_code=400, detail="삭제된 메시지입니다")
+    content = (body.get("content") or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="내용을 입력하세요")
+    msg.content = content
+    msg.is_edited = True
+    await db.commit()
+    await db.refresh(msg)
+    await _broadcast_update(db, msg)
+    return {"ok": True}
+
+
+@router.delete("/messages/{msg_id}")
+async def delete_message(msg_id: int, db: AsyncSession = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    msg = await db.get(ChatMessage, msg_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="메시지를 찾을 수 없습니다")
+    if msg.sender_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="본인 메시지만 삭제할 수 있습니다")
+    msg.is_deleted = True
+    await db.commit()
+    await db.refresh(msg)
+    await _broadcast_update(db, msg)
+    return {"ok": True}
 
 
 async def _build_user_context(db: AsyncSession, user_id: int) -> str:

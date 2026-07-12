@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.config import settings
 from app.core.socketio import sio
-from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor, organization, nas
+from app.api import auth, users, projects, tasks, emails, reports, work_logs, email_accounts, dashboard, search, notifications, whiteboards, system_links, chat, cert_monitor, organization, nas, recurring_tasks
 
 
 @asynccontextmanager
@@ -79,6 +79,12 @@ async def lifespan(app: FastAPI):
         await conn.execute(text(
             "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS attachments JSON DEFAULT '[]'"
         ))
+        await conn.execute(text(
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT FALSE"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE"
+        ))
         # project_members 테이블은 create_all로 자동 생성됨
     await _create_admin()
     await _create_ai_user()
@@ -88,6 +94,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_auto_generate_reports, 'cron', day_of_week=0, hour=9, id='weekly_report')
     scheduler.add_job(_auto_generate_reports, 'cron', day=1, hour=9, id='monthly_report')
     scheduler.add_job(_check_certs_job, 'cron', hour=8, minute=0, id='cert_check')
+    scheduler.add_job(_run_recurring_job, 'cron', hour=7, minute=0, id='recurring_tasks')
     scheduler.start()
     print("✓ 스케줄러 시작 (주간/월간 보고서, 매일 8시 인증서 점검)")
 
@@ -158,6 +165,17 @@ async def _seed_certs():
         print(f"✓ 인증서 모니터링 기본 도메인 {len(DEFAULT_CERT_HOSTS)}개 등록")
 
 
+async def _run_recurring_job():
+    from app.api.recurring_tasks import run_recurring
+    async with AsyncSessionLocal() as db:
+        try:
+            n = await run_recurring(db)
+            if n:
+                print(f"✓ 반복 할일 {n}건 생성")
+        except Exception as e:
+            print(f"반복 할일 생성 오류: {e}")
+
+
 async def _check_certs_job():
     from app.services.cert_monitor import refresh_all
     async with AsyncSessionLocal() as db:
@@ -202,6 +220,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(cert_monitor.router, prefix="/api")
 app.include_router(organization.router, prefix="/api")
 app.include_router(nas.router, prefix="/api")
+app.include_router(recurring_tasks.router, prefix="/api")
 
 
 @app.get("/api/health")

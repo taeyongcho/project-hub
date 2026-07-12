@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, JSON, Boolean
 from datetime import datetime
 from app.core.database import Base
 
@@ -24,6 +24,8 @@ class ChatMessage(Base):
     attachment = Column(JSON, nullable=True)  # {url, name, type, size, sticker?}
     reply_to = Column(JSON, nullable=True)    # {id, sender_name, preview}
     reactions = Column(JSON, default=dict)    # {emoji: [user_id, ...]}
+    is_edited = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (Index("ix_chat_channel_created", "channel", "created_at"),)
