@@ -10,6 +10,19 @@ import api from '../api/client'
 import { useBoard } from '../store/board'
 import useAuth from '../store/auth'
 
+function _mix(hex, target, amt) {
+  try {
+    const n = parseInt(String(hex).replace('#', ''), 16)
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+    r = Math.round(r + (target - r) * amt)
+    g = Math.round(g + (target - g) * amt)
+    b = Math.round(b + (target - b) * amt)
+    return `rgb(${r},${g},${b})`
+  } catch { return hex }
+}
+const _lighten = (hex, amt) => _mix(hex, 255, amt)
+const _darken = (hex, amt) => _mix(hex, 0, amt)
+
 const TOOLS = [
   { id: 'select', icon: MousePointer2, label: '선택' },
   { id: 'hand', icon: Hand, label: '이동(패닝)' },
@@ -721,8 +734,15 @@ export default function Whiteboard() {
                         node.scaleX(1); node.scaleY(1)
                         updateObject(obj.id, { x: node.x(), y: node.y(), width: Math.max(60, obj.width * sx), height: Math.max(60, obj.height * sy) })
                       }}>
-                      <Rect width={obj.width} height={obj.height} fill={obj.color} cornerRadius={4} shadowBlur={6} shadowOffsetY={3} shadowOpacity={0.2} />
-                      <Text x={10} y={10} text={obj.text} fontSize={obj.fontSize || 14} width={obj.width - 20} height={obj.height - 20} fill="#1f2937" wrap="word" verticalAlign="top" />
+                      <Rect width={obj.width} height={obj.height} cornerRadius={7}
+                        fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+                        fillLinearGradientEndPoint={{ x: 0, y: obj.height }}
+                        fillLinearGradientColorStops={[0, _lighten(obj.color, 0.22), 0.5, obj.color, 1, _darken(obj.color, 0.06)]}
+                        shadowColor="#334155" shadowBlur={16} shadowOffsetX={0} shadowOffsetY={8} shadowOpacity={0.18} />
+                      <Text x={16} y={15} text={obj.text} fontSize={obj.fontSize || 15}
+                        width={obj.width - 32} height={obj.height - 28}
+                        fill="#3f3a24" wrap="word" verticalAlign="top" lineHeight={1.35}
+                        fontFamily="'Noto Sans KR', sans-serif" />
                     </Group>
                   )
                 }
@@ -756,7 +776,7 @@ export default function Whiteboard() {
               )}
               {draft?.type === 'sticky' && (
                 <Rect listening={false} x={draft.x} y={draft.y} width={draft.width} height={draft.height}
-                  fill="#fde047" opacity={0.5} cornerRadius={4} stroke="#eab308" strokeWidth={1.5} dash={[6, 4]} />
+                  fill="#fde047" opacity={0.45} cornerRadius={7} stroke="#eab308" strokeWidth={1.5} dash={[6, 4]} />
               )}
 
               {/* 크기 조정 핸들 */}
