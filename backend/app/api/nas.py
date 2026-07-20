@@ -151,6 +151,26 @@ async def upload(path: str = Query(""), file: UploadFile = File(...),
     return {"ok": True, "name": name}
 
 
+@router.post("/delete")
+async def delete_file(body: dict, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """NAS 파일 삭제 — 본인 본부 폴더(쓰기 권한)만, 관리자는 전체"""
+    rel = (body.get("path") or "").strip().lstrip("/")
+    if not rel:
+        raise HTTPException(status_code=400, detail="경로가 없습니다")
+    division = await _get_division(db, current_user)
+    if not _can_access_top(current_user, division, rel):
+        raise HTTPException(status_code=403, detail="본인 본부 파일만 삭제할 수 있습니다")
+    full = _safe_path(rel)
+    if not os.path.isfile(full):
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+    try:
+        os.remove(full)
+    except OSError:
+        raise HTTPException(status_code=500, detail="삭제 실패 (권한 또는 사용 중)")
+    return {"ok": True}
+
+
 @router.post("/init-dept-folders")
 async def init_dept_folders(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     """조직도의 본부 단위로 NAS 폴더 생성 + 안 쓰는 빈 폴더 정리 (관리자)"""

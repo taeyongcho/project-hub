@@ -1204,6 +1204,17 @@ function NasModal({ onClose, onAttach }) {
     } finally { setBusy(false) }
   }
 
+  const removeFile = async (name) => {
+    if (busy || !confirm(`'${name}' 파일을 삭제할까요?`)) return
+    setBusy(true)
+    try {
+      await api.post('/nas/delete', { path: `${path ? path + '/' : ''}${name}` })
+      qc2.invalidateQueries({ queryKey: ['nas-list', path] })
+    } catch (e) {
+      alert(e.response?.data?.detail || '삭제 실패')
+    } finally { setBusy(false) }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70] p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md max-h-[75vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -1254,11 +1265,13 @@ function NasModal({ onClose, onAttach }) {
                 </button>
               ))}
               {data.files.map(f => (
-                <button key={f.name} onClick={() => attach(f.name)} disabled={busy}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 disabled:opacity-50 transition-colors"
-                  title="클릭하면 채팅에 첨부됩니다">
-                  <FileText size={16} className="text-slate-400 flex-shrink-0" />
-                  <span className="text-sm text-slate-800 dark:text-slate-100 truncate flex-1">{f.name}</span>
+                <div key={f.name} className="group w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                  <button onClick={() => attach(f.name)} disabled={busy}
+                    className="flex items-center gap-2.5 flex-1 min-w-0 text-left disabled:opacity-50"
+                    title="클릭하면 채팅에 첨부됩니다">
+                    <FileText size={16} className="text-slate-400 flex-shrink-0" />
+                    <span className="text-sm text-slate-800 dark:text-slate-100 truncate">{f.name}</span>
+                  </button>
                   {f.days_left !== undefined && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
                       f.days_left <= 1 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
@@ -1269,7 +1282,14 @@ function NasModal({ onClose, onAttach }) {
                     </span>
                   )}
                   <span className="text-[10px] text-slate-400 flex-shrink-0">{fmtNasSize(f.size)}</span>
-                </button>
+                  {data.can_write && (
+                    <button onClick={() => removeFile(f.name)} disabled={busy}
+                      title="파일 삭제"
+                      className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               ))}
             </>
           )}
