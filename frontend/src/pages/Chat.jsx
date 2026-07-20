@@ -1285,7 +1285,7 @@ function NasModal({ onClose, onAttach }) {
                   {data.can_write && (
                     <button onClick={() => removeFile(f.name)} disabled={busy}
                       title="파일 삭제"
-                      className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      className="text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded p-1 transition-colors flex-shrink-0">
                       <Trash2 size={14} />
                     </button>
                   )}
