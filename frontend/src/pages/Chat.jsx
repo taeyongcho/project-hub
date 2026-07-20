@@ -1352,8 +1352,18 @@ function ForwardModal({ msg, convos, users, myId, onClose, onSent }) {
 function GroupModal({ users, onClose, onCreated }) {
   const [name, setName] = useState('')
   const [selected, setSelected] = useState([])
+  const [q, setQ] = useState('')
   const [saving, setSaving] = useState(false)
   const toggle = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+
+  const selectedUsers = users.filter(u => selected.includes(u.id))
+  const ql = q.trim().toLowerCase()
+  // 검색 결과: 이름·부서 매칭, 미선택자만, 부서→이름 정렬
+  const results = users
+    .filter(u => !selected.includes(u.id))
+    .filter(u => ql && (u.name.toLowerCase().includes(ql) || (u.dept_name || '').toLowerCase().includes(ql)))
+    .sort((a, b) => (a.dept_name || '').localeCompare(b.dept_name || '') || a.name.localeCompare(b.name))
+    .slice(0, 40)
 
   const create = async () => {
     if (!name.trim() || selected.length === 0) return
@@ -1366,25 +1376,50 @@ function GroupModal({ users, onClose, onCreated }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">그룹 만들기</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X size={20} /></button>
         </div>
         <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="그룹 이름"
           className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 mb-3" />
-        <div className="text-xs font-medium text-slate-500 mb-1">멤버 초대 ({selected.length}명)</div>
-        <div className="max-h-56 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl p-2 mb-4">
-          {users.map(u => (
-            <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer">
-              <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} />
-              <span className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ background: `hsl(${(u.id * 137) % 360},60%,50%)` }}>{u.name[0]}</span>
-              <span className="text-sm text-slate-700 dark:text-slate-200">{u.name}</span>
-            </label>
+
+        {/* 선택된 멤버 칩 */}
+        <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          멤버 {selected.length > 0 && <span className="text-blue-600 dark:text-blue-400">{selected.length}명 선택됨</span>}
+        </div>
+        {selectedUsers.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {selectedUsers.map(u => (
+              <button key={u.id} onClick={() => toggle(u.id)}
+                className="flex items-center gap-1 text-xs bg-blue-600 text-white pl-2 pr-1.5 py-1 rounded-full font-medium hover:bg-blue-700">
+                {u.name}<X size={12} />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 검색 */}
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="이름 또는 부서로 검색..."
+          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 mb-2" />
+
+        <div className="flex-1 overflow-y-auto min-h-[80px] border border-slate-200 dark:border-slate-700 rounded-xl p-1.5 mb-4">
+          {!ql ? (
+            <div className="text-center text-xs text-slate-400 py-8">이름이나 부서를 입력해 검색하세요<br />(예: 김철수, 재무팀)</div>
+          ) : results.length === 0 ? (
+            <div className="text-center text-xs text-slate-400 py-8">검색 결과 없음</div>
+          ) : results.map(u => (
+            <button key={u.id} onClick={() => toggle(u.id)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer text-left">
+              <Avatar emoji={u.avatar_emoji} color={u.avatar_color} size={24} />
+              <span className="text-sm text-slate-700 dark:text-slate-200 flex-1">{u.name}</span>
+              {u.dept_name && <span className="text-[11px] text-slate-400">{u.dept_name}</span>}
+              <span className="text-blue-500 text-xs font-bold">+</span>
+            </button>
           ))}
         </div>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">취소</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">취소</button>
           <button onClick={create} disabled={!name.trim() || selected.length === 0 || saving}
             className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-medium">만들기</button>
         </div>
