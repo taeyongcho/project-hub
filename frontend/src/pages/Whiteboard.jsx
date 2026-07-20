@@ -469,7 +469,7 @@ export default function Whiteboard() {
       addObject({ id, type: 'sticky', ...box, text: '', color: '#fde047', fontSize: 14 })
       setTool('select')
       selectObject(id)
-      setTimeout(() => openEditorFor({ id, ...box, text: '', fontSize: 14, type: 'sticky' }), 50)
+      setTimeout(() => openEditorFor({ id, ...box, text: '', fontSize: 14, type: 'sticky', color: '#fde047' }), 50)
     }
 
     setIsDrawing(false)
@@ -500,10 +500,13 @@ export default function Whiteboard() {
   // 캔버스 좌표 기준으로 편집창 열기
   const openEditorFor = ({ id, x, y, text, width, fontSize, type, color }) => {
     const stageBox = stageRef.current.container().getBoundingClientRect()
+    const isSticky = (type || 'text') === 'sticky'
     setEditingText({
       id,
       type: type || 'text',
       color: color || '#000000',
+      bg: isSticky ? (color || '#fde047') : 'transparent',
+      ink: isSticky ? '#3f3a24' : (color || '#000000'),
       x: stageBox.left + x * stageScale + stagePos.x,
       y: stageBox.top + y * stageScale + stagePos.y,
       value: text || '',
@@ -890,24 +893,26 @@ export default function Whiteboard() {
               }}
               style={{
                 position: 'fixed',
-                left: editingText.x + 10,
-                top: editingText.y + 10,
-                width: Math.max(editingText.width || 200, 160),
+                left: editingText.x + 6,
+                top: editingText.y + 5,
+                width: Math.max(editingText.width || 200, 120),
                 fontSize: Math.max(editingText.fontSize || 14, 14),
-                lineHeight: '1.4',
-                padding: '8px',
-                border: '2px solid #3b82f6',
-                borderRadius: '6px',
+                lineHeight: '1.35',
+                padding: '10px 14px',
+                border: `2px solid ${_darken(editingText.bg || '#fde047', 0.15)}`,
+                borderRadius: '7px',
                 outline: 'none',
                 resize: 'none',
                 overflow: 'hidden',
                 zIndex: 1000,
-                fontFamily: 'inherit',
+                fontFamily: "'Noto Sans KR', sans-serif",
                 boxSizing: 'border-box',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
-                background: '#ffffff',
-                color: '#000000',
+                background: editingText.bg || '#fde047',
+                color: editingText.ink || '#3f3a24',
+                caretColor: editingText.ink || '#3f3a24',
+                boxShadow: '0 8px 16px rgba(51,65,85,0.18)',
                 verticalAlign: 'top',
                 textAlign: 'left'
               }}
