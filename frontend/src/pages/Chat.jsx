@@ -257,6 +257,10 @@ export default function Chat() {
 
   const pick = (ch, label) => { setChannel(ch); setChannelLabel(label) }
 
+  const curGroup = channel.startsWith('group:')
+    ? groups.find(g => `group:${g.id}` === channel)
+    : null
+
   const isPopup = typeof window !== 'undefined' && (window.opener != null || window.location.pathname === '/chat-popup')
 
   // 독립 창일 때 창 제목 (별도 프로그램처럼)
@@ -422,17 +426,54 @@ export default function Chat() {
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
           <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            {channel.startsWith('dm:') ? <UsersIcon size={18} /> : <Hash size={18} />}
+            {channel.startsWith('dm:') ? <UsersIcon size={18} /> : channel.startsWith('group:') ? <UsersRound size={18} /> : <Hash size={18} />}
             {channelLabel}
           </h2>
-          {!isPopup && (
-            <button
-              onClick={() => window.open('/chat-popup', 'projecthub_chat', 'width=440,height=680,menubar=no,toolbar=no,location=no,status=no')}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="작은 창으로 분리">
-              <ExternalLink size={14} /> 새 창
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {curGroup && (
+              curGroup.created_by_id === user.id ? (
+                <button
+                  onClick={async () => {
+                    if (!confirm(`그룹 '${curGroup.name}'을(를) 삭제할까요?\n모든 멤버에게서 사라집니다.`)) return
+                    try {
+                      await api.delete(`/chat/groups/${curGroup.id}`)
+                      qc.invalidateQueries({ queryKey: ['chat-groups'] })
+                      qc.invalidateQueries({ queryKey: ['chat-convos'] })
+                      pick('team', '전체 팀')
+                      toast.success('그룹이 삭제되었습니다')
+                    } catch { toast.error('삭제 실패') }
+                  }}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                  title="그룹 삭제">
+                  <Trash2 size={14} /> 그룹 삭제
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    if (!confirm(`그룹 '${curGroup.name}'에서 나갈까요?`)) return
+                    try {
+                      await api.post(`/chat/groups/${curGroup.id}/leave`)
+                      qc.invalidateQueries({ queryKey: ['chat-groups'] })
+                      qc.invalidateQueries({ queryKey: ['chat-convos'] })
+                      pick('team', '전체 팀')
+                      toast.success('그룹에서 나갔습니다')
+                    } catch { toast.error('나가기 실패') }
+                  }}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                  title="그룹 나가기">
+                  나가기
+                </button>
+              )
+            )}
+            {!isPopup && (
+              <button
+                onClick={() => window.open('/chat-popup', 'projecthub_chat', 'width=440,height=680,menubar=no,toolbar=no,location=no,status=no')}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="작은 창으로 분리">
+                <ExternalLink size={14} /> 새 창
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`flex-1 overflow-y-auto ${isPopup ? 'px-3' : 'px-6'} py-4 space-y-3`}>

@@ -187,6 +187,22 @@ async def update_group(group_id: int, body: GroupIn, db: AsyncSession = Depends(
     return {"id": g.id, "name": g.name, "member_ids": g.member_ids}
 
 
+@router.post("/groups/{group_id}/leave")
+async def leave_group(group_id: int, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    g = (await db.execute(select(ChatGroup).where(ChatGroup.id == group_id))).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="그룹을 찾을 수 없습니다")
+    members = [uid for uid in (g.member_ids or []) if uid != current_user.id]
+    if not members:
+        # 마지막 멤버가 나가면 그룹 삭제
+        await db.delete(g)
+    else:
+        g.member_ids = members
+    await db.commit()
+    return {"ok": True}
+
+
 @router.delete("/groups/{group_id}")
 async def delete_group(group_id: int, db: AsyncSession = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
