@@ -95,6 +95,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(_auto_generate_reports, 'cron', day=1, hour=9, id='monthly_report')
     scheduler.add_job(_check_certs_job, 'cron', hour=8, minute=0, id='cert_check')
     scheduler.add_job(_run_recurring_job, 'cron', hour=7, minute=0, id='recurring_tasks')
+    scheduler.add_job(_nas_cleanup_job, 'cron', hour=3, minute=0, id='nas_cleanup')
     scheduler.start()
     print("✓ 스케줄러 시작 (주간/월간 보고서, 매일 8시 인증서 점검)")
 
@@ -163,6 +164,30 @@ async def _seed_certs():
             await _refresh(db, cert)
         await db.commit()
         print(f"✓ 인증서 모니터링 기본 도메인 {len(DEFAULT_CERT_HOSTS)}개 등록")
+
+
+async def _nas_cleanup_job():
+    """NAS 공유 파일 7일 경과 시 자동 삭제 (매일 03:00)"""
+    import os, time
+    from app.api.nas import NAS_ROOT, NAS_TTL_DAYS
+    if not os.path.isdir(NAS_ROOT):
+        return
+    cutoff = time.time() - NAS_TTL_DAYS * 86400
+    removed = 0
+    for dirpath, dirnames, filenames in os.walk(NAS_ROOT):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in ("@eaDir", "#recycle")]
+        for fn in filenames:
+            if fn.startswith("."):
+                continue
+            fp = os.path.join(dirpath, fn)
+            try:
+                if os.path.getmtime(fp) < cutoff:
+                    os.remove(fp)
+                    removed += 1
+            except OSError:
+                pass
+    if removed:
+        print(f"✓ NAS 만료 파일 {removed}건 삭제 ({NAS_TTL_DAYS}일 경과)")
 
 
 async def _run_recurring_job():

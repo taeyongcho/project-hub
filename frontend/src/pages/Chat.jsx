@@ -259,6 +259,14 @@ export default function Chat() {
 
   const isPopup = typeof window !== 'undefined' && (window.opener != null || window.location.pathname === '/chat-popup')
 
+  // 독립 창일 때 창 제목 (별도 프로그램처럼)
+  useEffect(() => {
+    if (isPopup) {
+      document.title = '어센틱웍스 채팅'
+      return () => { document.title = '어센틱웍스' }
+    }
+  }, [isPopup])
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 워크스페이스 탭 (채팅/할일/캘린더) */}
@@ -1242,7 +1250,7 @@ function NasModal({ onClose, onAttach }) {
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                   <Folder size={16} className={`flex-shrink-0 ${d.name === data.my_dept ? 'text-blue-500' : 'text-amber-400'}`} />
                   <span className="text-sm text-slate-800 dark:text-slate-100 truncate">{d.name}</span>
-                  {d.name === data.my_dept && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium">내 부서</span>}
+                  {d.name === data.my_dept && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-medium">내 본부</span>}
                 </button>
               ))}
               {data.files.map(f => (
@@ -1251,6 +1259,15 @@ function NasModal({ onClose, onAttach }) {
                   title="클릭하면 채팅에 첨부됩니다">
                   <FileText size={16} className="text-slate-400 flex-shrink-0" />
                   <span className="text-sm text-slate-800 dark:text-slate-100 truncate flex-1">{f.name}</span>
+                  {f.days_left !== undefined && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                      f.days_left <= 1 ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'
+                      : f.days_left <= 3 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}
+                      title={`${f.days_left}일 후 자동 삭제`}>
+                      D-{f.days_left}
+                    </span>
+                  )}
                   <span className="text-[10px] text-slate-400 flex-shrink-0">{fmtNasSize(f.size)}</span>
                 </button>
               ))}
@@ -1259,7 +1276,7 @@ function NasModal({ onClose, onAttach }) {
         </div>
 
         <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-          파일 클릭 → 현재 대화방에 첨부 · 업로드는 내 부서 폴더만 가능
+          파일 클릭 → 첨부 · 업로드는 내 본부 폴더만 · ⏳ 파일은 업로드 {data?.ttl_days || 7}일 후 자동 삭제
         </div>
       </div>
     </div>

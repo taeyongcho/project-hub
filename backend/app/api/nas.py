@@ -32,22 +32,32 @@ def _top_dept(rel: str) -> str | None:
     return parts[0] if parts else None
 
 
-def _can_write(user: User, rel: str) -> bool:
-    if user.role == "admin":
-        return True
-    dept = getattr(user, "dept_name", None)
-    return bool(dept) and _top_dept(rel) == dept
+NAS_TTL_DAYS = 7  # 파일 보관 기간 (지나면 자동 삭제)
 
 
-def _can_read(user: User, rel: str) -> bool:
-    """읽기: 관리자는 전체, 일반 사용자는 자기 부서 폴더만"""
+async def _get_division(db: AsyncSession, user: User) -> str | None:
+    """사용자 소속 본부명 — 조직 트리를 루트 바로 아래(본부)까지 올라감.
+    본사/임원 직속은 그 이름 그대로."""
+    from app.models.organization import Organization
+    dept_code = getattr(user, "dept_code", None)
+    if not dept_code:
+        return getattr(user, "dept_name", None)
+    orgs = {o.code: o for o in (await db.execute(select(Organization))).scalars().all()}
+    node = orgs.get(dept_code)
+    if not node:
+        return getattr(user, "dept_name", None)
+    while node.parent_code and orgs.get(node.parent_code) and orgs[node.parent_code].parent_code:
+        node = orgs[node.parent_code]
+    return node.name
+
+
+def _can_access_top(user: User, division: str | None, rel: str) -> bool:
     if user.role == "admin":
         return True
     top = _top_dept(rel)
     if top is None:
-        return True  # 루트 목록은 허용 (자기 부서만 필터되어 보임)
-    dept = getattr(user, "dept_name", None)
-    return bool(dept) and top == dept
+        return True  # 루트 목록은 허용 (자기 본부만 필터되어 보임)
+    return bool(division) and top == division
 
 
 @router.get("/status")
@@ -57,14 +67,17 @@ async def status(_=Depends(get_current_user)):
 
 
 @router.get("/list")
-async def list_dir(path: str = Query(""), current_user: User = Depends(get_current_user)):
+async def list_dir(path: str = Query(""), db: AsyncSession = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
+    import time
     rel_in = (path or "").strip().lstrip("/")
-    if not _can_read(current_user, rel_in):
-        raise HTTPException(status_code=403, detail="본인 부서 폴더만 볼 수 있습니다")
+    division = await _get_division(db, current_user)
+    if not _can_access_top(current_user, division, rel_in):
+        raise HTTPException(status_code=403, detail="본인 본부 폴더만 볼 수 있습니다")
     full = _safe_path(path)
     if not os.path.isdir(full):
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다")
-    my_dept = getattr(current_user, "dept_name", None)
+    now = time.time()
     dirs, files = [], []
     try:
         for name in sorted(os.listdir(full)):
@@ -72,8 +85,8 @@ async def list_dir(path: str = Query(""), current_user: User = Depends(get_curre
                 continue
             fp = os.path.join(full, name)
             if os.path.isdir(fp):
-                # 루트에서는 관리자 외엔 자기 부서 폴더만 노출
-                if not rel_in and current_user.role != "admin" and name != my_dept:
+                # 루트에서는 관리자 외엔 자기 본부 폴더만 노출
+                if not rel_in and current_user.role != "admin" and name != division:
                     continue
                 dirs.append({"name": name, "type": "dir"})
             else:
@@ -82,21 +95,25 @@ async def list_dir(path: str = Query(""), current_user: User = Depends(get_curre
                     mtime = os.path.getmtime(fp)
                 except OSError:
                     size, mtime = 0, 0
-                files.append({"name": name, "type": "file", "size": size, "mtime": mtime})
+                age_days = (now - mtime) / 86400 if mtime else 0
+                days_left = max(0, NAS_TTL_DAYS - int(age_days))
+                files.append({"name": name, "type": "file", "size": size,
+                              "mtime": mtime, "days_left": days_left})
     except PermissionError:
         raise HTTPException(status_code=403, detail="NAS 접근 권한 오류")
-    rel = (path or "").strip().lstrip("/")
-    return {"path": rel, "dirs": dirs, "files": files,
-            "can_write": _can_write(current_user, rel) if rel else current_user.role == "admin",
-            "my_dept": getattr(current_user, "dept_name", None)}
+    return {"path": rel_in, "dirs": dirs, "files": files,
+            "can_write": _can_access_top(current_user, division, rel_in) and bool(rel_in) or current_user.role == "admin",
+            "my_dept": division, "ttl_days": NAS_TTL_DAYS}
 
 
 @router.post("/attach")
-async def attach_to_chat(body: dict, current_user: User = Depends(get_current_user)):
+async def attach_to_chat(body: dict, db: AsyncSession = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
     """NAS 파일을 채팅 첨부용으로 복사하고 attachment 메타 반환"""
     rel = body.get("path") or ""
-    if not _can_read(current_user, rel.strip().lstrip("/")):
-        raise HTTPException(status_code=403, detail="본인 부서 파일만 첨부할 수 있습니다")
+    division = await _get_division(db, current_user)
+    if not _can_access_top(current_user, division, rel.strip().lstrip("/")):
+        raise HTTPException(status_code=403, detail="본인 본부 파일만 첨부할 수 있습니다")
     full = _safe_path(rel)
     if not os.path.isfile(full):
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
@@ -115,11 +132,13 @@ async def attach_to_chat(body: dict, current_user: User = Depends(get_current_us
 
 @router.post("/upload")
 async def upload(path: str = Query(""), file: UploadFile = File(...),
+                 db: AsyncSession = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    """내 부서 폴더(또는 관리자)에 파일 업로드"""
+    """내 본부 폴더(또는 관리자)에 파일 업로드"""
     rel = (path or "").strip().lstrip("/")
-    if not _can_write(current_user, rel):
-        raise HTTPException(status_code=403, detail="본인 부서 폴더에만 업로드할 수 있습니다")
+    division = await _get_division(db, current_user)
+    if not rel or not _can_access_top(current_user, division, rel):
+        raise HTTPException(status_code=403, detail="본인 본부 폴더에만 업로드할 수 있습니다")
     full = _safe_path(rel)
     if not os.path.isdir(full):
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다")
@@ -134,15 +153,16 @@ async def upload(path: str = Query(""), file: UploadFile = File(...),
 
 @router.post("/init-dept-folders")
 async def init_dept_folders(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
-    """조직도의 팀·파트 부서명으로 NAS 폴더 자동 생성 (관리자)"""
+    """조직도의 본부 단위로 NAS 폴더 생성 + 안 쓰는 빈 폴더 정리 (관리자)"""
+    from app.models.organization import Organization
     if not os.path.isdir(NAS_ROOT):
         raise HTTPException(status_code=500, detail="NAS가 연결되지 않았습니다")
-    rows = (await db.execute(
-        select(User.dept_name).where(User.dept_name != None).distinct()
-    )).all()
-    created = []
-    for (dept,) in rows:
-        safe = dept.replace("/", "_").replace("\\", "_")
+    orgs = (await db.execute(select(Organization))).scalars().all()
+    root_codes = {o.code for o in orgs if not o.parent_code}
+    divisions = {o.name for o in orgs if not o.parent_code or o.parent_code in root_codes}
+    created, removed = [], []
+    for name in sorted(divisions):
+        safe = name.replace("/", "_").replace("\\", "_")
         p = os.path.join(NAS_ROOT, safe)
         if not os.path.exists(p):
             try:
@@ -150,4 +170,15 @@ async def init_dept_folders(db: AsyncSession = Depends(get_db), _=Depends(requir
                 created.append(safe)
             except OSError:
                 pass
-    return {"created": created, "count": len(created)}
+    # 본부 목록에 없는 빈 폴더 정리 (내용 있는 폴더는 보존)
+    for name in os.listdir(NAS_ROOT):
+        if name.startswith(".") or name in ("@eaDir", "#recycle") or name in divisions:
+            continue
+        p = os.path.join(NAS_ROOT, name)
+        if os.path.isdir(p):
+            try:
+                os.rmdir(p)  # 비어있을 때만 성공
+                removed.append(name)
+            except OSError:
+                pass
+    return {"created": created, "removed_empty": removed, "divisions": sorted(divisions)}
