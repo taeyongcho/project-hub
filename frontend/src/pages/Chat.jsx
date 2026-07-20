@@ -6,6 +6,7 @@ import { Hash, Send, Users as UsersIcon, MessageSquare, Smile, Sticker, Papercli
 import dayjs from 'dayjs'
 import api from '../api/client'
 import useAuth from '../store/auth'
+import usePresence from '../store/presence'
 import Avatar from '../components/Avatar'
 
 function dmChannel(a, b) {
@@ -74,7 +75,8 @@ export default function Chat() {
   const [aiTyping, setAiTyping] = useState(false)
   const [dmSearch, setDmSearch] = useState('')
   const [sideTab, setSideTab] = useState('talks')  // 'talks' 대화 | 'people' 사람
-  const [onlineIds, setOnlineIds] = useState([])
+  const onlineIds = usePresence(s => s.online)
+  const setOnline = usePresence(s => s.setOnline)
   const [forwardMsg, setForwardMsg] = useState(null)  // 전달할 메시지
   const [showNas, setShowNas] = useState(false)       // NAS 자료실 모달
   const [taskFromMsg, setTaskFromMsg] = useState(null) // 메시지→할일 모달
@@ -144,7 +146,7 @@ export default function Chat() {
     // 온라인 상태
     socket.on('connect', () => socket.emit('presence_join', { userId: user.id }))
     socket.emit('presence_join', { userId: user.id })
-    socket.on('presence', (d) => setOnlineIds(d.online || []))
+    socket.on('presence', (d) => setOnline(d.online || []))
     // 데스크톱 알림 권한 요청 (1회)
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission()

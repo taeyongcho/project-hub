@@ -1,12 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
+import { io } from 'socket.io-client'
 import Sidebar from './Sidebar'
 import TaskDetailPanel from './TaskDetailPanel'
+import useAuth from '../store/auth'
+import usePresence from '../store/presence'
 
 export default function Layout() {
   const [selectedTaskId, setSelectedTaskId] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { user } = useAuth()
+  const setOnline = usePresence(s => s.setOnline)
+
+  // 앱 로그인 상태면 전역으로 접속 신호 전송 (채팅 안 켜도 온라인)
+  useEffect(() => {
+    if (!user?.id) return
+    const socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'] })
+    const join = () => socket.emit('presence_join', { userId: user.id })
+    socket.on('connect', join)
+    join()
+    socket.on('presence', (d) => setOnline(d.online || []))
+    return () => socket.disconnect()
+  }, [user?.id, setOnline])
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
