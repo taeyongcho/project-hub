@@ -261,6 +261,26 @@ export default function Chat() {
     ? groups.find(g => `group:${g.id}` === channel)
     : null
 
+  // 헤더 접속 상태 표시
+  const presenceLabel = (() => {
+    if (channel.startsWith('dm:')) {
+      const [a, b] = channel.slice(3).split('-').map(Number)
+      const otherId = a === user.id ? b : a
+      const online = onlineIds.includes(otherId)
+      return { online, text: online ? '접속 중' : '오프라인' }
+    }
+    if (curGroup) {
+      const others = (curGroup.member_ids || []).filter(id => id !== user.id)
+      const on = others.filter(id => onlineIds.includes(id)).length
+      return { online: on > 0, text: on > 0 ? `${on}/${others.length}명 접속 중` : '모두 오프라인' }
+    }
+    if (channel === 'team' || channel.startsWith('project:')) {
+      const on = onlineIds.filter(id => id !== user.id).length
+      return { online: on > 0, text: `${on}명 접속 중` }
+    }
+    return null
+  })()
+
   const isPopup = typeof window !== 'undefined' && (window.opener != null || window.location.pathname === '/chat-popup')
 
   // 독립 창일 때 창 제목 (별도 프로그램처럼)
@@ -425,10 +445,20 @@ export default function Chat() {
       {/* 메시지 영역 */}
       <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
-          <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            {channel.startsWith('dm:') ? <UsersIcon size={18} /> : channel.startsWith('group:') ? <UsersRound size={18} /> : <Hash size={18} />}
-            {channelLabel}
-          </h2>
+          <div className="min-w-0">
+            <h2 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              {channel.startsWith('dm:') ? <UsersIcon size={18} /> : channel.startsWith('group:') ? <UsersRound size={18} /> : <Hash size={18} />}
+              <span className="truncate">{channelLabel}</span>
+            </h2>
+            {presenceLabel && (
+              <div className="flex items-center gap-1.5 mt-0.5 ml-0.5">
+                <span className={`w-2 h-2 rounded-full ${presenceLabel.online ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                <span className={`text-xs ${presenceLabel.online ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                  {presenceLabel.text}
+                </span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             {curGroup && (
               curGroup.created_by_id === user.id ? (
